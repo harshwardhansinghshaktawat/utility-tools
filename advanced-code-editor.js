@@ -73,6 +73,8 @@ class AdvancedCodeEditor extends HTMLElement {
                     width: 100%;
                     height: 600px;
                     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                    position: relative;
+                    overflow: hidden;
                 }
 
                 * {
@@ -91,6 +93,7 @@ class AdvancedCodeEditor extends HTMLElement {
                         0 20px 40px rgba(0, 0, 0, 0.3),
                         0 0 0 1px rgba(255, 255, 255, 0.1);
                     position: relative;
+                    z-index: 1;
                 }
 
                 .editor-header {
@@ -276,6 +279,15 @@ class AdvancedCodeEditor extends HTMLElement {
                 .monaco-container {
                     flex: 1;
                     position: relative;
+                    overflow: hidden;
+                    background: #1e1e1e;
+                    min-height: 200px;
+                }
+
+                .monaco-container > div {
+                    position: relative !important;
+                    width: 100% !important;
+                    height: 100% !important;
                 }
 
                 .output-panel {
@@ -285,6 +297,8 @@ class AdvancedCodeEditor extends HTMLElement {
                     display: flex;
                     flex-direction: column;
                     transition: height 0.3s ease;
+                    position: relative;
+                    z-index: 2;
                 }
 
                 .output-panel.collapsed {
@@ -514,6 +528,10 @@ class AdvancedCodeEditor extends HTMLElement {
                     align-items: center;
                     gap: 10px;
                     z-index: 999;
+                    background: rgba(30, 30, 30, 0.9);
+                    padding: 20px;
+                    border-radius: 8px;
+                    backdrop-filter: blur(10px);
                 }
 
                 .spinner {
@@ -700,16 +718,30 @@ class AdvancedCodeEditor extends HTMLElement {
         const loading = this.querySelector('#loading');
         
         try {
+            // Show loading state
+            if (loading) {
+                loading.style.display = 'flex';
+                loading.innerHTML = `
+                    <div class="spinner"></div>
+                    <div>Loading Monaco Editor...</div>
+                `;
+            }
+
             // Load Monaco Editor script if not already loaded
             if (!window.require) {
-                const script = document.createElement('script');
-                script.src = 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js';
-                document.head.appendChild(script);
-                
+                console.log('Loading Monaco loader...');
                 await new Promise((resolve, reject) => {
-                    script.onload = resolve;
-                    script.onerror = reject;
-                    setTimeout(reject, 10000); // 10 second timeout
+                    const script = document.createElement('script');
+                    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js';
+                    script.onload = () => {
+                        console.log('Monaco loader loaded successfully');
+                        resolve();
+                    };
+                    script.onerror = () => reject(new Error('Failed to load Monaco loader'));
+                    document.head.appendChild(script);
+                    
+                    // Timeout after 10 seconds
+                    setTimeout(() => reject(new Error('Monaco loader timeout')), 10000);
                 });
             }
 
@@ -721,35 +753,86 @@ class AdvancedCodeEditor extends HTMLElement {
             });
 
             // Load Monaco Editor
+            console.log('Loading Monaco Editor...');
             await new Promise((resolve, reject) => {
                 require(['vs/editor/editor.main'], () => {
                     try {
+                        console.log('Monaco Editor loaded successfully');
                         this.monaco = window.monaco;
-                        this.createEditor();
-                        loading.style.display = 'none';
-                        this.isMonacoLoaded = true;
-
-                        // Dispatch ready event
-                        this.dispatchEvent(new CustomEvent('editor-ready', {
-                            detail: { editor: this.editor, monaco: this.monaco }
-                        }));
                         
-                        resolve();
+                        // Create editor after a small delay to ensure DOM is ready
+                        setTimeout(() => {
+                            this.createEditor();
+                            this.isMonacoLoaded = true;
+                            
+                            // Hide loading
+                            if (loading) {
+                                loading.style.display = 'none';
+                            }
+
+                            // Dispatch ready event
+                            this.dispatchEvent(new CustomEvent('editor-ready', {
+                                detail: { editor: this.editor, monaco: this.monaco }
+                            }));
+                            
+                            resolve();
+                        }, 200);
+                        
                     } catch (error) {
+                        console.error('Error initializing Monaco:', error);
                         reject(error);
                     }
                 }, (error) => {
-                    reject(error);
+                    console.error('Error loading Monaco modules:', error);
+                    reject(new Error('Failed to load Monaco modules'));
                 });
+                
+                // Timeout after 15 seconds
+                setTimeout(() => reject(new Error('Monaco editor timeout')), 15000);
             });
+            
         } catch (error) {
             console.error('Failed to load Monaco Editor:', error);
+            this.showError(error.message);
+        }
+    }
+
+    showError(message) {
+        const loading = this.querySelector('#loading');
+        if (loading) {
             loading.innerHTML = `
-                <div style="color: #ff6b6b; text-align: center;">
-                    <div>❌ Failed to load editor</div>
-                    <div style="font-size: 12px; margin-top: 5px;">Please check your internet connection and refresh</div>
-                    <button style="margin-top: 10px; padding: 5px 10px; background: #007acc; color: white; border: none; border-radius: 4px; cursor: pointer;" onclick="location.reload()">
-                        🔄 Retry
+                <div style="color: #ff6b6b; text-align: center; max-width: 300px;">
+                    <div style="font-size: 18px; margin-bottom: 10px;">❌ Editor Error</div>
+                    <div style="font-size: 14px; margin-bottom: 15px;">${message}</div>
+                    <div style="font-size: 12px; margin-bottom: 15px; opacity: 0.8;">
+                        Please check your internet connection and try again.
+                    </div>
+                    <button 
+                        style="
+                            padding: 8px 16px; 
+                            background: #007acc; 
+                            color: white; 
+                            border: none; 
+                            border-radius: 6px; 
+                            cursor: pointer;
+                            margin-right: 10px;
+                        " 
+                        onclick="location.reload()"
+                    >
+                        🔄 Reload Page
+                    </button>
+                    <button 
+                        style="
+                            padding: 8px 16px; 
+                            background: #666; 
+                            color: white; 
+                            border: none; 
+                            border-radius: 6px; 
+                            cursor: pointer;
+                        " 
+                        onclick="this.closest('advanced-code-editor').troubleshoot()"
+                    >
+                        🔧 Troubleshoot
                     </button>
                 </div>
             `;
@@ -759,46 +842,91 @@ class AdvancedCodeEditor extends HTMLElement {
     createEditor() {
         const container = this.querySelector('#monacoContainer');
         
-        // Ensure container has proper dimensions
-        if (container.offsetWidth === 0 || container.offsetHeight === 0) {
-            setTimeout(() => this.createEditor(), 100);
+        // Ensure container exists and has dimensions
+        if (!container) {
+            console.error('Monaco container not found');
             return;
         }
         
-        this.editor = this.monaco.editor.create(container, {
-            value: this.files[this.currentFile],
-            language: this.getAttribute('language') || 'javascript',
-            theme: this.getAttribute('theme') || this.currentTheme,
-            fontSize: parseInt(this.getAttribute('font-size')) || 14,
-            tabSize: 4,
-            insertSpaces: true,
-            wordWrap: 'off',
-            minimap: { enabled: true },
-            scrollBeyondLastLine: false,
-            automaticLayout: true,
-            contextmenu: true,
-            quickSuggestions: true,
-            suggestOnTriggerCharacters: true,
-            acceptSuggestionOnEnter: 'on',
-            snippetSuggestions: 'top',
-            folding: true,
-            lineNumbers: 'on',
-            rulers: [],
-            renderWhitespace: 'selection',
-            roundedSelection: false,
-            selectOnLineNumbers: true,
-            readOnly: false,
-            cursorBlinking: 'blink',
-            cursorSmoothCaretAnimation: true,
-            smoothScrolling: true,
-            scrollbar: {
-                useShadows: false,
-                verticalHasArrows: true,
-                horizontalHasArrows: true,
-                horizontal: 'auto',
-                vertical: 'auto'
+        // Wait for container to have proper dimensions
+        const checkDimensions = () => {
+            const rect = container.getBoundingClientRect();
+            if (rect.width === 0 || rect.height === 0) {
+                setTimeout(checkDimensions, 50);
+                return;
             }
-        });
+            
+            // Clear any existing content
+            container.innerHTML = '';
+            
+            try {
+                // Create the editor
+                this.editor = this.monaco.editor.create(container, {
+                    value: this.files[this.currentFile] || '',
+                    language: this.getLanguageFromFilename(this.currentFile),
+                    theme: this.getAttribute('theme') || this.currentTheme,
+                    fontSize: parseInt(this.getAttribute('font-size')) || 14,
+                    tabSize: 4,
+                    insertSpaces: true,
+                    wordWrap: 'off',
+                    minimap: { enabled: true },
+                    scrollBeyondLastLine: false,
+                    automaticLayout: true,
+                    contextmenu: true,
+                    quickSuggestions: true,
+                    suggestOnTriggerCharacters: true,
+                    acceptSuggestionOnEnter: 'on',
+                    snippetSuggestions: 'top',
+                    folding: true,
+                    lineNumbers: 'on',
+                    selectOnLineNumbers: true,
+                    readOnly: false,
+                    cursorBlinking: 'blink',
+                    cursorSmoothCaretAnimation: true,
+                    smoothScrolling: true,
+                    renderWhitespace: 'selection',
+                    roundedSelection: false,
+                    scrollbar: {
+                        useShadows: false,
+                        verticalHasArrows: true,
+                        horizontalHasArrows: true,
+                        horizontal: 'auto',
+                        vertical: 'auto'
+                    },
+                    // Force proper positioning
+                    dimension: {
+                        width: rect.width,
+                        height: rect.height
+                    }
+                });
+
+                // Set up event listeners
+                this.setupEditorEvents();
+                
+                // Force initial layout
+                setTimeout(() => {
+                    this.editor.layout();
+                    this.editor.focus();
+                    this.updateStatusBar({ lineNumber: 1, column: 1 });
+                    this.updateFileSize();
+                }, 100);
+                
+            } catch (error) {
+                console.error('Error creating Monaco editor:', error);
+                container.innerHTML = `
+                    <div style="color: #ff6b6b; padding: 20px; text-align: center;">
+                        <div>❌ Failed to create editor</div>
+                        <div style="font-size: 12px; margin-top: 5px;">${error.message}</div>
+                    </div>
+                `;
+            }
+        };
+        
+        checkDimensions();
+    }
+
+    setupEditorEvents() {
+        if (!this.editor) return;
 
         // Update status bar on cursor position change
         this.editor.onDidChangeCursorPosition((e) => {
@@ -818,16 +946,6 @@ class AdvancedCodeEditor extends HTMLElement {
                 }
             }));
         });
-
-        this.updateStatusBar({ lineNumber: 1, column: 1 });
-        this.updateFileSize();
-
-        // Ensure editor is focused and ready
-        setTimeout(() => {
-            this.editor.focus();
-            this.editor.setPosition({ lineNumber: 1, column: 1 });
-            this.editor.layout();
-        }, 100);
 
         // Add keyboard shortcuts
         this.editor.addCommand(this.monaco.KeyMod.CtrlCmd | this.monaco.KeyCode.Enter, () => {
@@ -958,14 +1076,18 @@ class AdvancedCodeEditor extends HTMLElement {
     }
 
     switchFile(filename) {
-        if (!this.editor || !this.monaco) return;
+        if (!this.editor || !this.monaco) {
+            console.warn('Editor not ready for file switch');
+            return;
+        }
 
-        // Save current file content
-        if (this.currentFile) {
+        // Save current file content before switching
+        if (this.currentFile && this.editor) {
             this.files[this.currentFile] = this.editor.getValue();
         }
         
-        // Update active file
+        // Update current file
+        const oldFile = this.currentFile;
         this.currentFile = filename;
         
         // Update UI
@@ -976,35 +1098,36 @@ class AdvancedCodeEditor extends HTMLElement {
         // Update tab bar
         this.updateTabBar(filename);
         
-        // Create new model for the file
-        const language = this.getLanguageFromFilename(filename);
-        const fileContent = this.files[filename] || '';
-        
-        // Dispose old model if exists
-        const oldModel = this.editor.getModel();
-        if (oldModel) {
-            oldModel.dispose();
-        }
-        
-        // Create new model
-        const newModel = this.monaco.editor.createModel(fileContent, language);
-        this.editor.setModel(newModel);
-        
-        // Update language selector
-        this.querySelector('#languageSelect').value = language;
-        this.querySelector('#currentLanguage').textContent = language.charAt(0).toUpperCase() + language.slice(1);
-        
-        // Focus editor and set cursor position
-        setTimeout(() => {
-            this.editor.focus();
-            this.editor.setPosition({ lineNumber: 1, column: 1 });
-            this.updateFileSize();
-        }, 50);
+        try {
+            // Get file content and language
+            const fileContent = this.files[filename] || '';
+            const language = this.getLanguageFromFilename(filename);
+            
+            // Simply set the value and language - don't create new models
+            this.editor.setValue(fileContent);
+            this.monaco.editor.setModelLanguage(this.editor.getModel(), language);
+            
+            // Update UI elements
+            this.querySelector('#languageSelect').value = language;
+            this.querySelector('#currentLanguage').textContent = language.charAt(0).toUpperCase() + language.slice(1);
+            
+            // Focus and position cursor
+            setTimeout(() => {
+                this.editor.focus();
+                this.editor.setPosition({ lineNumber: 1, column: 1 });
+                this.updateFileSize();
+            }, 50);
 
-        // Dispatch file change event
-        this.dispatchEvent(new CustomEvent('file-changed', {
-            detail: { file: filename, content: fileContent }
-        }));
+            // Dispatch file change event
+            this.dispatchEvent(new CustomEvent('file-changed', {
+                detail: { file: filename, content: fileContent, oldFile: oldFile }
+            }));
+            
+        } catch (error) {
+            console.error('Error switching file:', error);
+            // Revert to old file if switch failed
+            this.currentFile = oldFile;
+        }
     }
 
     getLanguageFromFilename(filename) {
@@ -1342,13 +1465,32 @@ class AdvancedCodeEditor extends HTMLElement {
 
     setValue(value) {
         if (this.editor) {
-            this.editor.setValue(value || '');
-            // Update the current file content
-            this.files[this.currentFile] = value || '';
-            setTimeout(() => {
-                this.editor.focus();
-                this.editor.setPosition({ lineNumber: 1, column: 1 });
-            }, 50);
+            const safeValue = value || '';
+            try {
+                // Save cursor position
+                const position = this.editor.getPosition();
+                
+                // Set value
+                this.editor.setValue(safeValue);
+                
+                // Update current file content
+                this.files[this.currentFile] = safeValue;
+                
+                // Restore cursor position if valid
+                setTimeout(() => {
+                    try {
+                        this.editor.setPosition(position || { lineNumber: 1, column: 1 });
+                        this.editor.focus();
+                    } catch (e) {
+                        // Position might be invalid for new content
+                        this.editor.setPosition({ lineNumber: 1, column: 1 });
+                        this.editor.focus();
+                    }
+                }, 50);
+                
+            } catch (error) {
+                console.error('Error setting editor value:', error);
+            }
         }
     }
 
@@ -1456,6 +1598,107 @@ class AdvancedCodeEditor extends HTMLElement {
             'md': '📖'
         };
         return iconMap[ext] || '📄';
+    }
+
+    // Debug method to check editor status
+    getDebugInfo() {
+        return {
+            isMonacoLoaded: this.isMonacoLoaded,
+            hasEditor: !!this.editor,
+            hasMongo: !!this.monaco,
+            currentFile: this.currentFile,
+            filesCount: Object.keys(this.files).length,
+            editorValue: this.editor ? this.editor.getValue().substring(0, 50) + '...' : 'No editor',
+            containerSize: {
+                width: this.querySelector('#monacoContainer')?.offsetWidth || 0,
+                height: this.querySelector('#monacoContainer')?.offsetHeight || 0
+            }
+        };
+    }
+
+    // Method to fix common editor issues
+    troubleshoot() {
+        console.log('🔧 Editor Troubleshooting...');
+        const debugInfo = this.getDebugInfo();
+        console.log('Debug Info:', debugInfo);
+        
+        const container = this.querySelector('#monacoContainer');
+        const loading = this.querySelector('#loading');
+        
+        // Check for white screen (container issues)
+        if (container && (container.offsetWidth === 0 || container.offsetHeight === 0)) {
+            console.log('❌ Container has no dimensions, fixing...');
+            container.style.width = '100%';
+            container.style.height = '100%';
+            container.style.minHeight = '200px';
+        }
+        
+        // Check for overlay issues
+        const editorElements = container?.querySelectorAll('[class*="monaco"]');
+        if (editorElements) {
+            editorElements.forEach(el => {
+                if (el.style.position === 'fixed') {
+                    console.log('❌ Found fixed positioned element, fixing...');
+                    el.style.position = 'relative';
+                }
+            });
+        }
+        
+        if (!this.isMonacoLoaded) {
+            console.log('❌ Monaco not loaded, attempting reload...');
+            if (loading) loading.style.display = 'flex';
+            this.loadMonacoEditor();
+            return;
+        }
+        
+        if (!this.editor) {
+            console.log('❌ Editor not created, attempting creation...');
+            this.createEditor();
+            return;
+        }
+        
+        // Force layout and refresh
+        console.log('✅ Refreshing editor layout...');
+        try {
+            this.editor.layout();
+            this.refresh();
+            
+            // Ensure proper focus
+            setTimeout(() => {
+                this.editor.focus();
+                console.log('✅ Troubleshooting complete');
+            }, 100);
+        } catch (error) {
+            console.error('Error during troubleshooting:', error);
+            this.dispose();
+            this.createEditor();
+        }
+    }
+
+    // Properly dispose of the editor
+    dispose() {
+        try {
+            if (this.editor) {
+                this.editor.dispose();
+                this.editor = null;
+            }
+            
+            // Clear container
+            const container = this.querySelector('#monacoContainer');
+            if (container) {
+                container.innerHTML = '';
+            }
+            
+            this.isMonacoLoaded = false;
+            console.log('✅ Editor disposed successfully');
+        } catch (error) {
+            console.error('Error disposing editor:', error);
+        }
+    }
+
+    // Handle disconnection
+    disconnectedCallback() {
+        this.dispose();
     }
 }
 
