@@ -1,57 +1,43 @@
+// code-editor.js
+import { EditorView, basicSetup } from 'codemirror';
+import { javascript } from '@codemirror/lang-javascript';
+import { css } from '@codemirror/lang-css';
+import { html } from '@codemirror/lang-html';
+import { python } from '@codemirror/lang-python';
+import { oneDark } from '@codemirror/theme-one-dark';
+import { EditorState } from '@codemirror/state';
+import { lineNumbers, gutter } from '@codemirror/gutter';
+import { autocompletion, completionKeymap } from '@codemirror/autocomplete';
+import { keymap } from '@codemirror/view';
+import { indentWithTab } from '@codemirror/commands';
+import { tags, HighlightStyle } from '@codemirror/highlight';
+
+// Define custom highlight style for syntax coloring
+const customHighlightStyle = HighlightStyle.define([
+  { tag: tags.keyword, color: '#c792ea', fontWeight: 'bold' },
+  { tag: tags.comment, color: '#6272a4', fontStyle: 'italic' },
+  { tag: tags.string, color: '#f1fa8c' },
+  { tag: tags.number, color: '#bd93f9' },
+  { tag: tags.variableName, color: '#50fa7b' },
+  { tag: tags.function, color: '#ffb86c' },
+  { tag: tags.className, color: '#8be9fd' },
+  { tag: tags.tagName, color: '#ff79c6' },
+  { tag: tags.attributeName, color: '#f8f8f2' },
+]);
+
+// Define the custom element class
 class CodeEditor extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
-    this.editor = null;
-    this.currentLanguage = 'javascript';
-    this.currentTheme = 'vs-dark';
-    this.currentValue = '';
-    this.monacoLoaded = false;
-  }
-
-  static get observedAttributes() {
-    return ['language', 'theme', 'value', 'read-only', 'height'];
   }
 
   connectedCallback() {
-    this.render();
-    this.loadMonacoEditor().then(() => {
-      this.initializeEditor();
-      this.setupEventListeners();
-    });
-  }
+    // Get attributes or set defaults
+    const language = this.getAttribute('language') || 'javascript';
+    const initialCode = this.getAttribute('code') || '// Start coding here...';
 
-  attributeChangedCallback(name, oldValue, newValue) {
-    if (!this.editor || !this.monacoLoaded) return;
-
-    switch (name) {
-      case 'language':
-        window.monaco.editor.setModelLanguage(this.editor.getModel(), newValue);
-        this.currentLanguage = newValue;
-        break;
-      case 'theme':
-        window.monaco.editor.setTheme(newValue);
-        this.currentTheme = newValue;
-        break;
-      case 'value':
-        this.editor.setValue(newValue);
-        this.currentValue = newValue;
-        break;
-      case 'read-only':
-        this.editor.updateOptions({ readOnly: newValue === 'true' });
-        break;
-      case 'height':
-        const container = this.shadowRoot.querySelector('#editor-container');
-        container.style.height = newValue || '400px';
-        if (this.editor) {
-          this.editor.layout();
-        }
-        break;
-    }
-  }
-
-  render() {
-    const height = this.getAttribute('height') || '400px';
+    // Create shadow DOM structure
     this.shadowRoot.innerHTML = `
       <style>
         :host {
@@ -59,181 +45,171 @@ class CodeEditor extends HTMLElement {
           width: 100%;
           height: 100%;
           min-height: 400px;
+          background-color: #1e1e1e;
+          border-radius: 8px;
+          overflow: hidden;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+          font-family: 'Fira Code', 'Consolas', monospace;
         }
-        .editor-wrapper {
-          display: flex;
-          flex-direction: column;
+
+        .editor-container {
+          position: relative;
+          width: 100%;
           height: 100%;
-          min-height: ${height};
         }
+
         .toolbar {
           display: flex;
-          gap: 10px;
-          padding: 5px;
-          background: #f5f5f5;
-          border-bottom: 1px solid #ccc;
+          align-items: center;
+          background-color: #252526;
+          padding: 8px;
+          border-bottom: 1px solid #3c3c3c;
         }
-        #editor-container {
-          flex: 1;
-          width: 100%;
-          height: ${height};
-          min-height: 300px;
-          border: 1px solid #ccc;
+
+        .toolbar select,
+        .toolbar button {
+          background-color: #3c3c3c;
+          color: #ffffff;
+          border: none;
+          padding: 6px 12px;
+          margin-right: 8px;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 14px;
+          transition: background-color 0.2s;
         }
-        select, button {
-          padding: 5px;
+
+        .toolbar select:hover,
+        .toolbar button:hover {
+          background-color: #4e4e4e;
+        }
+
+        .codemirror-wrapper {
+          height: calc(100% - 40px);
+          overflow: auto;
+        }
+
+        .cm-editor {
+          height: 100%;
           font-size: 14px;
         }
+
+        .cm-gutters {
+          background-color: #1e1e1e;
+          color: #858585;
+          border-right: 1px solid #3c3c3c;
+        }
+
+        .cm-activeLine {
+          background-color: #2a2a2a;
+        }
+
+        .cm-selectionBackground {
+          background-color: #264f78 !important;
+        }
+
+        .cm-cursor {
+          border-left: 1px solid #ffffff;
+        }
+
+        .status-bar {
+          background-color: #007acc;
+          color: #ffffff;
+          padding: 4px 8px;
+          font-size: 12px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
       </style>
-      <div class="editor-wrapper">
+      <div class="editor-container">
         <div class="toolbar">
           <select id="language-select">
             <option value="javascript">JavaScript</option>
-            <option value="typescript">TypeScript</option>
-            <option value="python">Python</option>
             <option value="html">HTML</option>
             <option value="css">CSS</option>
-            <option value="json">JSON</option>
+            <option value="python">Python</option>
           </select>
-          <select id="theme-select">
-            <option value="vs">Light</option>
-            <option value="vs-dark">Dark</option>
-            <option value="hc-black">High Contrast</option>
-          </select>
-          <button id="format-btn">Format Code</button>
-          <button id="copy-btn">Copy Code</button>
+          <button id="run-button">Run</button>
+          <button id="clear-button">Clear</button>
         </div>
-        <div id="editor-container"></div>
+        <div class="codemirror-wrapper"></div>
+        <div class="status-bar">
+          <span id="language-status">Language: ${language}</span>
+          <span id="line-col">Ln 1, Col 1</span>
+        </div>
       </div>
     `;
-  }
 
-  loadMonacoEditor() {
-    return new Promise((resolve, reject) => {
-      if (window.monaco) {
-        this.monacoLoaded = true;
-        resolve();
-        return;
-      }
+    // Map language to CodeMirror language extension
+    const languageMap = {
+      javascript: javascript({ jsx: true }),
+      html: html(),
+      css: css(),
+      python: python(),
+    };
 
-      const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js';
-      script.async = true;
-
-      script.onload = () => {
-        window.require.config({
-          paths: {
-            vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs'
+    // Initialize CodeMirror
+    const editorWrapper = this.shadowRoot.querySelector('.codemirror-wrapper');
+    const state = EditorState.create({
+      doc: initialCode,
+      extensions: [
+        basicSetup,
+        languageMap[language] || javascript(),
+        oneDark,
+        customHighlightStyle,
+        lineNumbers(),
+        gutter(),
+        autocompletion(),
+        keymap.of([...completionKeymap, indentWithTab]),
+        EditorView.lineWrapping,
+        EditorView.updateListener.of((update) => {
+          if (update.selectionSet) {
+            const pos = update.state.selection.main.head;
+            const line = update.state.doc.lineAt(pos);
+            const col = pos - line.from + 1;
+            this.shadowRoot.querySelector('#line-col').textContent = `Ln ${line.number}, Col ${col}`;
           }
-        });
-
-        window.require(['vs/editor/editor.main'], () => {
-          this.monacoLoaded = true;
-          resolve();
-        }, (err) => {
-          console.error('Failed to load Monaco Editor:', err);
-          reject(err);
-        });
-      };
-
-      script.onerror = (err) => {
-        console.error('Failed to load Monaco loader:', err);
-        reject(err);
-      };
-
-      document.head.appendChild(script);
-    });
-  }
-
-  initializeEditor() {
-    if (!this.monacoLoaded || !window.monaco) return;
-
-    const container = this.shadowRoot.querySelector('#editor-container');
-
-    this.editor = window.monaco.editor.create(container, {
-      value: this.getAttribute('value') || '// Start coding here...',
-      language: this.getAttribute('language') || this.currentLanguage,
-      theme: this.getAttribute('theme') || this.currentTheme,
-      automaticLayout: true,
-      minimap: { enabled: true },
-      scrollBeyondLastLine: false,
-      fontSize: 14,
-      lineNumbers: 'on',
-      wordWrap: 'on',
-      formatOnPaste: true,
-      formatOnType: true,
-      readOnly: this.getAttribute('read-only') === 'true',
-      tabSize: 2,
-      insertSpaces: true,
-      autoClosingBrackets: 'always',
-      autoClosingQuotes: 'always',
-      suggest: {
-        showWords: true,
-        showSnippets: true,
-      },
+        }),
+      ],
     });
 
-    this.currentValue = this.editor.getValue();
-    this.currentLanguage = this.getAttribute('language') || this.currentLanguage;
-    this.currentTheme = this.getAttribute('theme') || this.currentTheme;
-
-    this.editor.onDidChangeModelContent(() => {
-      const newValue = this.editor.getValue();
-      this.currentValue = newValue;
-      this.dispatchEvent(new CustomEvent('change', {
-        detail: { value: newValue },
-        bubbles: true,
-        composed: true
-      }));
+    const view = new EditorView({
+      state,
+      parent: editorWrapper,
     });
 
-    // Force layout after initialization
-    this.editor.layout();
-  }
-
-  setupEventListeners() {
+    // Handle language selection
     const languageSelect = this.shadowRoot.querySelector('#language-select');
-    const themeSelect = this.shadowRoot.querySelector('#theme-select');
-    const formatBtn = this.shadowRoot.querySelector('#format-btn');
-    const copyBtn = this.shadowRoot.querySelector('#copy-btn');
-
-    languageSelect.addEventListener('change', (e) => {
-      this.setAttribute('language', e.target.value);
+    languageSelect.value = language;
+    languageSelect.addEventListener('change', () => {
+      const newLanguage = languageSelect.value;
+      view.dispatch({
+        effects: EditorState.language.of(languageMap[newLanguage] || javascript()),
+      });
+      this.shadowRoot.querySelector('#language-status').textContent = `Language: ${newLanguage}`;
     });
 
-    themeSelect.addEventListener('change', (e) => {
-      this.setAttribute('theme', e.target.value);
+    // Handle run button (placeholder for execution logic)
+    this.shadowRoot.querySelector('#run-button').addEventListener('click', () => {
+      const code = view.state.doc.toString();
+      console.log('Running code:', code);
+      // Add custom execution logic here (e.g., eval for JS or send to a server)
     });
 
-    formatBtn.addEventListener('click', async () => {
-      if (this.monacoLoaded) {
-        await this.editor.getAction('editor.action.formatDocument').run();
-      }
-    });
-
-    copyBtn.addEventListener('click', () => {
-      navigator.clipboard.writeText(this.editor.getValue());
-      copyBtn.textContent = 'Copied!';
-      setTimeout(() => (copyBtn.textContent = 'Copy Code'), 1000);
+    // Handle clear button
+    this.shadowRoot.querySelector('#clear-button').addEventListener('click', () => {
+      view.dispatch({
+        changes: { from: 0, to: view.state.doc.length, insert: '' },
+      });
     });
   }
 
-  getValue() {
-    return this.editor ? this.editor.getValue() : this.currentValue;
-  }
-
-  setValue(value) {
-    if (this.editor) {
-      this.editor.setValue(value);
-    }
-    this.currentValue = value;
-  }
-
-  disconnectedCallback() {
-    if (this.editor) {
-      this.editor.dispose();
-    }
+  // Expose method to get current code
+  getCode() {
+    return this.shadowRoot.querySelector('.cm-editor').state.doc.toString();
   }
 }
 
+// Register the custom element
 customElements.define('code-editor', CodeEditor);
