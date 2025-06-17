@@ -79,11 +79,13 @@ class AdvancedCodeEditor extends HTMLElement {
           width: ${width};
           height: ${height};
           min-height: 300px;
+          max-height: none;
           font-family: 'Monaco', 'Menlo', 'Consolas', 'Liberation Mono', 'Courier New', monospace;
           border: 1px solid #e1e4e8;
           border-radius: 6px;
           overflow: hidden;
           background: #ffffff;
+          box-sizing: border-box;
         }
 
         .editor-wrapper {
@@ -91,6 +93,8 @@ class AdvancedCodeEditor extends HTMLElement {
           flex-direction: column;
           width: 100%;
           height: 100%;
+          min-height: 300px;
+          box-sizing: border-box;
         }
 
         .toolbar {
@@ -101,8 +105,10 @@ class AdvancedCodeEditor extends HTMLElement {
           background: linear-gradient(to bottom, #fafbfc, #eff3f6);
           border-bottom: 1px solid #e1e4e8;
           font-size: 12px;
-          flex-shrink: 0;
+          height: 40px;
           min-height: 40px;
+          max-height: 40px;
+          flex-shrink: 0;
           box-sizing: border-box;
         }
 
@@ -195,11 +201,12 @@ class AdvancedCodeEditor extends HTMLElement {
         }
 
         #editor-container {
-          flex: 1;
           width: 100%;
+          height: calc(100% - 64px); /* Total height minus toolbar (40px) and status bar (24px) */
           min-height: 250px;
           position: relative;
           background: #ffffff;
+          box-sizing: border-box;
         }
 
         .loading {
@@ -258,8 +265,11 @@ class AdvancedCodeEditor extends HTMLElement {
           border-top: 1px solid #e1e4e8;
           font-size: 11px;
           color: #586069;
+          height: 24px;
           min-height: 24px;
+          max-height: 24px;
           flex-shrink: 0;
+          box-sizing: border-box;
         }
 
         .status-left {
@@ -547,12 +557,26 @@ class AdvancedCodeEditor extends HTMLElement {
       // Hide loading and show editor
       loading.classList.add('hidden');
       
-      // Force layout and update UI
+      // Ensure container has proper dimensions before layout
+      const containerHeight = container.clientHeight;
+      const containerWidth = container.clientWidth;
+      
+      console.log('Editor container dimensions:', containerWidth, 'x', containerHeight);
+      
+      // Force layout multiple times to ensure proper sizing
       setTimeout(() => {
         this.editor.layout();
         this.updateToolbarSelects();
         this.updateStatusBar();
-      }, 100);
+      }, 50);
+      
+      setTimeout(() => {
+        this.editor.layout();
+      }, 200);
+      
+      setTimeout(() => {
+        this.editor.layout();
+      }, 500);
 
     } catch (error) {
       console.error('Failed to initialize Monaco Editor:', error);
@@ -637,11 +661,28 @@ class AdvancedCodeEditor extends HTMLElement {
     const height = this.getAttribute('height') || '500px';
     const width = this.getAttribute('width') || '100%';
     
+    // Update host element dimensions
     this.style.height = height;
     this.style.width = width;
     
+    // Update CSS custom properties if needed
+    const wrapper = this.shadowRoot.querySelector('.editor-wrapper');
+    if (wrapper) {
+      wrapper.style.height = '100%';
+      wrapper.style.width = '100%';
+    }
+    
+    const container = this.shadowRoot.querySelector('#editor-container');
+    if (container) {
+      // Force recalculation of editor container height
+      container.style.height = 'calc(100% - 64px)';
+    }
+    
+    // Force Monaco editor layout with multiple attempts
     if (this.editor) {
+      setTimeout(() => this.editor.layout(), 0);
       setTimeout(() => this.editor.layout(), 100);
+      setTimeout(() => this.editor.layout(), 300);
     }
   }
 
