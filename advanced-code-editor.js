@@ -20,8 +20,16 @@ class AdvancedCodeEditor extends HTMLElement {
     }
 
     connectedCallback() {
+        // Set default dimensions if not specified
+        if (!this.style.width) this.style.width = this.getAttribute('width') || '100%';
+        if (!this.style.height) this.style.height = this.getAttribute('height') || '600px';
+        
         this.render();
-        this.loadMonacoEditor();
+        
+        // Small delay to ensure DOM is ready
+        setTimeout(() => {
+            this.loadMonacoEditor();
+        }, 50);
     }
 
     attributeChangedCallback(name, oldValue, newValue) {
@@ -692,7 +700,7 @@ class AdvancedCodeEditor extends HTMLElement {
         const loading = this.querySelector('#loading');
         
         try {
-            // Load Monaco Editor script
+            // Load Monaco Editor script if not already loaded
             if (!window.require) {
                 const script = document.createElement('script');
                 script.src = 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js';
@@ -701,6 +709,7 @@ class AdvancedCodeEditor extends HTMLElement {
                 await new Promise((resolve, reject) => {
                     script.onload = resolve;
                     script.onerror = reject;
+                    setTimeout(reject, 10000); // 10 second timeout
                 });
             }
 
@@ -712,25 +721,49 @@ class AdvancedCodeEditor extends HTMLElement {
             });
 
             // Load Monaco Editor
-            require(['vs/editor/editor.main'], () => {
-                this.monaco = window.monaco;
-                this.createEditor();
-                loading.style.display = 'none';
-                this.isMonacoLoaded = true;
+            await new Promise((resolve, reject) => {
+                require(['vs/editor/editor.main'], () => {
+                    try {
+                        this.monaco = window.monaco;
+                        this.createEditor();
+                        loading.style.display = 'none';
+                        this.isMonacoLoaded = true;
 
-                // Dispatch ready event
-                this.dispatchEvent(new CustomEvent('editor-ready', {
-                    detail: { editor: this.editor, monaco: this.monaco }
-                }));
+                        // Dispatch ready event
+                        this.dispatchEvent(new CustomEvent('editor-ready', {
+                            detail: { editor: this.editor, monaco: this.monaco }
+                        }));
+                        
+                        resolve();
+                    } catch (error) {
+                        reject(error);
+                    }
+                }, (error) => {
+                    reject(error);
+                });
             });
         } catch (error) {
             console.error('Failed to load Monaco Editor:', error);
-            loading.innerHTML = '<div style="color: #ff6b6b;">Failed to load editor. Please refresh the page.</div>';
+            loading.innerHTML = `
+                <div style="color: #ff6b6b; text-align: center;">
+                    <div>❌ Failed to load editor</div>
+                    <div style="font-size: 12px; margin-top: 5px;">Please check your internet connection and refresh</div>
+                    <button style="margin-top: 10px; padding: 5px 10px; background: #007acc; color: white; border: none; border-radius: 4px; cursor: pointer;" onclick="location.reload()">
+                        🔄 Retry
+                    </button>
+                </div>
+            `;
         }
     }
 
     createEditor() {
         const container = this.querySelector('#monacoContainer');
+        
+        // Ensure container has proper dimensions
+        if (container.offsetWidth === 0 || container.offsetHeight === 0) {
+            setTimeout(() => this.createEditor(), 100);
+            return;
+        }
         
         this.editor = this.monaco.editor.create(container, {
             value: this.files[this.currentFile],
@@ -753,10 +786,17 @@ class AdvancedCodeEditor extends HTMLElement {
             rulers: [],
             renderWhitespace: 'selection',
             roundedSelection: false,
+            selectOnLineNumbers: true,
+            readOnly: false,
+            cursorBlinking: 'blink',
+            cursorSmoothCaretAnimation: true,
+            smoothScrolling: true,
             scrollbar: {
                 useShadows: false,
                 verticalHasArrows: true,
-                horizontalHasArrows: true
+                horizontalHasArrows: true,
+                horizontal: 'auto',
+                vertical: 'auto'
             }
         });
 
@@ -781,6 +821,13 @@ class AdvancedCodeEditor extends HTMLElement {
 
         this.updateStatusBar({ lineNumber: 1, column: 1 });
         this.updateFileSize();
+
+        // Ensure editor is focused and ready
+        setTimeout(() => {
+            this.editor.focus();
+            this.editor.setPosition({ lineNumber: 1, column: 1 });
+            this.editor.layout();
+        }, 100);
 
         // Add keyboard shortcuts
         this.editor.addCommand(this.monaco.KeyMod.CtrlCmd | this.monaco.KeyCode.Enter, () => {
@@ -911,10 +958,12 @@ class AdvancedCodeEditor extends HTMLElement {
     }
 
     switchFile(filename) {
-        if (!this.editor) return;
+        if (!this.editor || !this.monaco) return;
 
         // Save current file content
-        this.files[this.currentFile] = this.editor.getValue();
+        if (this.currentFile) {
+            this.files[this.currentFile] = this.editor.getValue();
+        }
         
         // Update active file
         this.currentFile = filename;
@@ -927,20 +976,34 @@ class AdvancedCodeEditor extends HTMLElement {
         // Update tab bar
         this.updateTabBar(filename);
         
-        // Load file content
-        this.editor.setValue(this.files[filename] || '');
-        
-        // Set appropriate language
+        // Create new model for the file
         const language = this.getLanguageFromFilename(filename);
-        this.monaco.editor.setModelLanguage(this.editor.getModel(), language);
+        const fileContent = this.files[filename] || '';
+        
+        // Dispose old model if exists
+        const oldModel = this.editor.getModel();
+        if (oldModel) {
+            oldModel.dispose();
+        }
+        
+        // Create new model
+        const newModel = this.monaco.editor.createModel(fileContent, language);
+        this.editor.setModel(newModel);
+        
+        // Update language selector
         this.querySelector('#languageSelect').value = language;
         this.querySelector('#currentLanguage').textContent = language.charAt(0).toUpperCase() + language.slice(1);
         
-        this.updateFileSize();
+        // Focus editor and set cursor position
+        setTimeout(() => {
+            this.editor.focus();
+            this.editor.setPosition({ lineNumber: 1, column: 1 });
+            this.updateFileSize();
+        }, 50);
 
         // Dispatch file change event
         this.dispatchEvent(new CustomEvent('file-changed', {
-            detail: { file: filename, content: this.files[filename] }
+            detail: { file: filename, content: fileContent }
         }));
     }
 
@@ -1279,7 +1342,13 @@ class AdvancedCodeEditor extends HTMLElement {
 
     setValue(value) {
         if (this.editor) {
-            this.editor.setValue(value);
+            this.editor.setValue(value || '');
+            // Update the current file content
+            this.files[this.currentFile] = value || '';
+            setTimeout(() => {
+                this.editor.focus();
+                this.editor.setPosition({ lineNumber: 1, column: 1 });
+            }, 50);
         }
     }
 
@@ -1290,6 +1359,8 @@ class AdvancedCodeEditor extends HTMLElement {
     setLanguage(language) {
         if (this.editor && this.monaco) {
             this.monaco.editor.setModelLanguage(this.editor.getModel(), language);
+            this.querySelector('#languageSelect').value = language;
+            this.querySelector('#currentLanguage').textContent = language.charAt(0).toUpperCase() + language.slice(1);
         }
     }
 
@@ -1307,25 +1378,59 @@ class AdvancedCodeEditor extends HTMLElement {
         }
     }
 
+    // Force editor refresh - useful for fixing display issues
+    refresh() {
+        if (this.editor) {
+            const currentContent = this.editor.getValue();
+            const currentPosition = this.editor.getPosition();
+            
+            setTimeout(() => {
+                this.editor.layout();
+                this.editor.setValue(currentContent);
+                this.editor.setPosition(currentPosition);
+                this.editor.focus();
+            }, 100);
+        }
+    }
+
     addFile(filename, content = '') {
         this.files[filename] = content;
         this.updateFileList();
+        
+        // If this is the first file or editor isn't ready, switch to it
+        if (Object.keys(this.files).length === 1 || !this.currentFile) {
+            this.currentFile = filename;
+        }
     }
 
     removeFile(filename) {
         if (Object.keys(this.files).length > 1) {
             delete this.files[filename];
+            
+            // If we're removing the current file, switch to another
+            if (this.currentFile === filename) {
+                this.currentFile = Object.keys(this.files)[0];
+                if (this.editor) {
+                    this.switchFile(this.currentFile);
+                }
+            }
+            
             this.updateFileList();
         }
     }
 
     updateFileList() {
         const fileList = this.querySelector('#fileList');
+        if (!fileList) return;
+        
         fileList.innerHTML = '';
         
         Object.keys(this.files).forEach(filename => {
             const fileItem = document.createElement('div');
             fileItem.className = 'file-item';
+            if (filename === this.currentFile) {
+                fileItem.classList.add('active');
+            }
             fileItem.dataset.file = filename;
             fileItem.innerHTML = `
                 <span class="file-icon">${this.getFileIcon(filename)}</span>
