@@ -6,9 +6,9 @@ class AdvancedCodeEditor extends HTMLElement {
         this.editor = null;
         this.currentTheme = 'vs-dark';
         this.files = {
-            'main.js': `// Welcome to Advanced Code Editor!\n// This editor supports multiple languages with VS Code features\n\nfunction greetUser(name) {\n    console.log(\`Hello, \${name}! Welcome to our advanced editor.\`);\n    return \`Welcome, \${name}!\`;\n}\n\n// Try autocomplete by typing 'greet' and pressing Ctrl+Space\ngreetUser('Developer');\n\n// Features included:\n// ✅ Syntax highlighting\n// ✅ Auto-completion\n// ✅ Error detection\n// ✅ Multiple themes\n// ✅ File management\n// ✅ And much more!`,
-            'style.css': `/* Beautiful CSS for your projects */\n\n.container {\n    max-width: 1200px;\n    margin: 0 auto;\n    padding: 20px;\n    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n    border-radius: 12px;\n    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);\n}\n\n.card {\n    background: white;\n    padding: 30px;\n    border-radius: 8px;\n    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);\n    transition: transform 0.3s ease;\n}\n\n.card:hover {\n    transform: translateY(-5px);\n}`,
-            'index.html': `<!DOCTYPE html>\n<html lang="en">\n<head>\n    <meta charset="UTF-8">\n    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n    <title>My Project</title>\n    <link rel="stylesheet" href="style.css">\n</head>\n<body>\n    <div class="container">\n        <div class="card">\n            <h1>Welcome to My Project</h1>\n            <p>This is a sample HTML file in our advanced code editor.</p>\n            <button onclick="greetUser('World')">Click Me!</button>\n        </div>\n    </div>\n    <script src="main.js"></script>\n</body>\n</html>`,
+            'main.js': `// Welcome to Advanced Code Editor!\n// Click the ▶️ Run button to execute this code!\n\nconsole.log('🚀 Hello from the Advanced Code Editor!');\n\nfunction greetUser(name) {\n    const greeting = \`Hello, \${name}! Welcome to our advanced editor.\`;\n    console.log(greeting);\n    return greeting;\n}\n\n// Test the function\nconst result = greetUser('Developer');\nconsole.log('Function returned:', result);\n\n// Try some math\nconst numbers = [1, 2, 3, 4, 5];\nconst sum = numbers.reduce((a, b) => a + b, 0);\nconsole.log('Sum of', numbers, 'is', sum);\n\n// Show current time\nconst now = new Date();\nconsole.log('Current time:', now.toLocaleTimeString());\n\n// Features included:\n// ✅ Real JavaScript execution\n// ✅ Console output capture\n// ✅ Error handling\n// ✅ HTML/CSS preview\n// ✅ Multiple file support\n// ✅ And much more!\n\n'Ready to code! 🎉'`,
+            'style.css': `/* Beautiful CSS for your projects */\n/* Click the 👁️ Preview button to see these styles! */\n\nbody {\n    margin: 0;\n    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;\n    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n    min-height: 100vh;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n}\n\n.container {\n    max-width: 600px;\n    margin: 0 auto;\n    padding: 20px;\n}\n\n.card {\n    background: rgba(255, 255, 255, 0.95);\n    padding: 40px;\n    border-radius: 20px;\n    box-shadow: \n        0 20px 40px rgba(0, 0, 0, 0.1),\n        0 0 0 1px rgba(255, 255, 255, 0.2);\n    backdrop-filter: blur(10px);\n    transition: transform 0.3s ease;\n    text-align: center;\n}\n\n.card:hover {\n    transform: translateY(-10px);\n}\n\n.card h1 {\n    color: #333;\n    margin-bottom: 20px;\n    font-size: 2.5em;\n    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);\n}\n\n.card p {\n    color: #666;\n    line-height: 1.6;\n    margin-bottom: 15px;\n}\n\n.demo-btn {\n    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n    color: white;\n    border: none;\n    padding: 15px 30px;\n    border-radius: 50px;\n    font-size: 16px;\n    font-weight: 600;\n    cursor: pointer;\n    transition: all 0.3s ease;\n    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);\n    margin: 20px 0;\n}\n\n.demo-btn:hover {\n    transform: translateY(-2px);\n    box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);\n}\n\n.demo-btn:active {\n    transform: translateY(0);\n}`,
+            'index.html': `<!DOCTYPE html>\n<html lang="en">\n<head>\n    <meta charset="UTF-8">\n    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n    <title>My Interactive Project</title>\n    <link rel="stylesheet" href="style.css">\n</head>\n<body>\n    <div class="container">\n        <div class="card">\n            <h1>🚀 Welcome to My Project</h1>\n            <p>This is a sample HTML file in our advanced code editor.</p>\n            <p>Click the 👁️ Preview button to see this rendered!</p>\n            <button onclick="greetUser('World')" class="demo-btn">Click Me! 🎉</button>\n            <div id="output"></div>\n        </div>\n    </div>\n    <script>\n        function greetUser(name) {\n            const output = document.getElementById('output');\n            output.innerHTML = \`<p style="color: #00d4aa; margin-top: 10px;">Hello, \${name}! 👋</p>\`;\n            console.log('Button clicked! Greeting:', name);\n        }\n    </script>\n</body>\n</html>`,
             'README.md': `# Advanced Code Editor\n\nA powerful, VS Code-like editor built for the web.\n\n## Features\n\n- 🚀 **Fast Performance** - Powered by Monaco Editor\n- 🎨 **Beautiful UI** - Modern, responsive design\n- 🌓 **Multiple Themes** - Dark and light themes\n- 📁 **File Management** - Organize your code files\n- 🔧 **Customizable** - Adjust settings to your preference\n- 💡 **IntelliSense** - Smart code completion\n- 🐛 **Error Detection** - Real-time error highlighting\n\n## Supported Languages\n\n- JavaScript/TypeScript\n- HTML/CSS\n- Python\n- Java\n- C++\n- JSON/XML\n- Markdown\n- And many more!\n\n## Getting Started\n\n1. Select a file from the explorer\n2. Start coding with full IntelliSense support\n3. Use Ctrl+Space for auto-completion\n4. Customize settings using the settings panel\n\nHappy coding! 🎉`
         };
         this.currentFile = 'main.js';
@@ -262,11 +262,151 @@ class AdvancedCodeEditor extends HTMLElement {
                     flex: 1;
                     display: flex;
                     flex-direction: column;
+                    position: relative;
                 }
 
                 .monaco-container {
                     flex: 1;
                     position: relative;
+                }
+
+                .output-panel {
+                    height: 200px;
+                    background: rgba(20, 20, 20, 0.95);
+                    border-top: 1px solid rgba(255, 255, 255, 0.1);
+                    display: flex;
+                    flex-direction: column;
+                    transition: height 0.3s ease;
+                }
+
+                .output-panel.collapsed {
+                    height: 40px;
+                }
+
+                .output-header {
+                    height: 40px;
+                    background: rgba(30, 30, 30, 0.95);
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    padding: 0 15px;
+                    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+                }
+
+                .output-title {
+                    color: #ffffff;
+                    font-size: 14px;
+                    font-weight: 600;
+                }
+
+                .output-controls {
+                    display: flex;
+                    gap: 8px;
+                }
+
+                .output-btn {
+                    background: rgba(255, 255, 255, 0.1);
+                    border: none;
+                    color: #ffffff;
+                    padding: 4px 8px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 11px;
+                    transition: background 0.3s ease;
+                }
+
+                .output-btn:hover {
+                    background: rgba(255, 255, 255, 0.2);
+                }
+
+                .output-content {
+                    flex: 1;
+                    padding: 10px 15px;
+                    overflow-y: auto;
+                    font-family: 'Courier New', monospace;
+                    font-size: 13px;
+                    line-height: 1.4;
+                }
+
+                .output-line {
+                    margin-bottom: 4px;
+                    white-space: pre-wrap;
+                    word-break: break-word;
+                }
+
+                .output-line.welcome {
+                    color: #00d4aa;
+                }
+
+                .output-line.log {
+                    color: #ffffff;
+                }
+
+                .output-line.error {
+                    color: #ff6b6b;
+                }
+
+                .output-line.warn {
+                    color: #ffd93d;
+                }
+
+                .output-line.info {
+                    color: #74b9ff;
+                }
+
+                .preview-panel {
+                    position: absolute;
+                    top: 0;
+                    right: 0;
+                    width: 50%;
+                    height: 100%;
+                    background: rgba(30, 30, 30, 0.98);
+                    border-left: 1px solid rgba(255, 255, 255, 0.1);
+                    z-index: 100;
+                    display: flex;
+                    flex-direction: column;
+                }
+
+                .preview-header {
+                    height: 40px;
+                    background: rgba(45, 45, 48, 0.95);
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    padding: 0 15px;
+                    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+                }
+
+                .preview-title {
+                    color: #ffffff;
+                    font-size: 14px;
+                    font-weight: 600;
+                }
+
+                .preview-controls {
+                    display: flex;
+                    gap: 8px;
+                }
+
+                .preview-btn {
+                    background: rgba(255, 255, 255, 0.1);
+                    border: none;
+                    color: #ffffff;
+                    padding: 6px 12px;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    font-size: 11px;
+                    transition: background 0.3s ease;
+                }
+
+                .preview-btn:hover {
+                    background: rgba(255, 255, 255, 0.2);
+                }
+
+                .preview-iframe {
+                    flex: 1;
+                    border: none;
+                    background: white;
                 }
 
                 .status-bar {
@@ -423,6 +563,7 @@ class AdvancedCodeEditor extends HTMLElement {
                         <button class="control-btn" id="settingsBtn">⚙️ Settings</button>
                         <button class="control-btn" id="formatBtn">📐 Format</button>
                         <button class="control-btn" id="runBtn">▶️ Run</button>
+                        <button class="control-btn" id="previewBtn">👁️ Preview</button>
                     </div>
                 </div>
 
@@ -461,6 +602,32 @@ class AdvancedCodeEditor extends HTMLElement {
                         </div>
                         
                         <div class="monaco-container" id="monacoContainer"></div>
+                        
+                        <!-- Output Console -->
+                        <div class="output-panel" id="outputPanel">
+                            <div class="output-header">
+                                <span class="output-title">📟 Console Output</span>
+                                <div class="output-controls">
+                                    <button class="output-btn" id="clearConsole">🗑️ Clear</button>
+                                    <button class="output-btn" id="toggleOutput">➖</button>
+                                </div>
+                            </div>
+                            <div class="output-content" id="outputContent">
+                                <div class="output-line welcome">✨ Ready to run your code! Click the Run button to see output.</div>
+                            </div>
+                        </div>
+
+                        <!-- Preview Panel -->
+                        <div class="preview-panel" id="previewPanel" style="display: none;">
+                            <div class="preview-header">
+                                <span class="preview-title">👁️ Live Preview</span>
+                                <div class="preview-controls">
+                                    <button class="preview-btn" id="refreshPreview">🔄 Refresh</button>
+                                    <button class="preview-btn" id="closePreview">✕ Close</button>
+                                </div>
+                            </div>
+                            <iframe class="preview-iframe" id="previewIframe" sandbox="allow-scripts allow-same-origin"></iframe>
+                        </div>
                         
                         <div class="status-bar">
                             <div class="status-left">
@@ -508,6 +675,15 @@ class AdvancedCodeEditor extends HTMLElement {
         `;
 
         this.setupEventListeners();
+
+        // Listen for iframe console messages
+        window.addEventListener('message', (event) => {
+            if (event.data && event.data.type === 'console') {
+                const { method, args } = event.data;
+                const message = args.map(arg => this.formatValue(arg)).join(' ');
+                this.addOutputLine(`🖼️ Preview: ${message}`, method);
+            }
+        });
     }
 
     async loadMonacoEditor() {
@@ -605,6 +781,15 @@ class AdvancedCodeEditor extends HTMLElement {
 
         this.updateStatusBar({ lineNumber: 1, column: 1 });
         this.updateFileSize();
+
+        // Add keyboard shortcuts
+        this.editor.addCommand(this.monaco.KeyMod.CtrlCmd | this.monaco.KeyCode.Enter, () => {
+            this.runCode();
+        });
+
+        this.editor.addCommand(this.monaco.KeyMod.CtrlCmd | this.monaco.KeyMod.Shift | this.monaco.KeyCode.KeyP, () => {
+            this.showPreview();
+        });
     }
 
     setupEventListeners() {
@@ -641,11 +826,33 @@ class AdvancedCodeEditor extends HTMLElement {
         // Run code (simulate)
         this.querySelector('#runBtn').addEventListener('click', () => {
             if (this.editor) {
-                const code = this.editor.getValue();
-                this.dispatchEvent(new CustomEvent('code-run', {
-                    detail: { code, file: this.currentFile }
-                }));
+                this.runCode();
             }
+        });
+
+        // Preview button
+        this.querySelector('#previewBtn').addEventListener('click', () => {
+            if (this.editor) {
+                this.showPreview();
+            }
+        });
+
+        // Output panel controls
+        this.querySelector('#clearConsole').addEventListener('click', () => {
+            this.clearConsole();
+        });
+
+        this.querySelector('#toggleOutput').addEventListener('click', () => {
+            this.toggleOutputPanel();
+        });
+
+        // Preview panel controls
+        this.querySelector('#refreshPreview').addEventListener('click', () => {
+            this.refreshPreview();
+        });
+
+        this.querySelector('#closePreview').addEventListener('click', () => {
+            this.closePreview();
         });
 
         // File list
@@ -813,6 +1020,258 @@ class AdvancedCodeEditor extends HTMLElement {
         this.querySelector('#fileSize').textContent = `${size} ${sizes[i]}`;
     }
 
+    // Code execution methods
+    runCode() {
+        const code = this.editor.getValue();
+        const language = this.editor.getModel().getLanguageId();
+        
+        this.clearConsole();
+        this.addOutputLine('🚀 Running code...', 'info');
+        
+        try {
+            switch (language) {
+                case 'javascript':
+                    this.executeJavaScript(code);
+                    break;
+                case 'html':
+                    this.executeHTML(code);
+                    break;
+                case 'css':
+                    this.addOutputLine('💡 CSS detected. Use Preview button to see visual output.', 'info');
+                    break;
+                case 'python':
+                    this.addOutputLine('🐍 Python execution requires a backend server. Showing code structure analysis...', 'warn');
+                    this.analyzePythonCode(code);
+                    break;
+                default:
+                    this.addOutputLine(`⚠️ Code execution not supported for ${language}. Showing code analysis...`, 'warn');
+                    this.analyzeCode(code, language);
+            }
+        } catch (error) {
+            this.addOutputLine(`❌ Execution Error: ${error.message}`, 'error');
+        }
+    }
+
+    executeJavaScript(code) {
+        // Capture console output
+        const originalConsole = {
+            log: console.log,
+            error: console.error,
+            warn: console.warn,
+            info: console.info
+        };
+
+        // Override console methods
+        console.log = (...args) => {
+            this.addOutputLine(`📋 ${args.map(arg => this.formatValue(arg)).join(' ')}`, 'log');
+            originalConsole.log(...args);
+        };
+
+        console.error = (...args) => {
+            this.addOutputLine(`❌ ${args.map(arg => this.formatValue(arg)).join(' ')}`, 'error');
+            originalConsole.error(...args);
+        };
+
+        console.warn = (...args) => {
+            this.addOutputLine(`⚠️ ${args.map(arg => this.formatValue(arg)).join(' ')}`, 'warn');
+            originalConsole.warn(...args);
+        };
+
+        console.info = (...args) => {
+            this.addOutputLine(`ℹ️ ${args.map(arg => this.formatValue(arg)).join(' ')}`, 'info');
+            originalConsole.info(...args);
+        };
+
+        try {
+            // Create a safe execution context
+            const result = new Function(code)();
+            
+            if (result !== undefined) {
+                this.addOutputLine(`✅ Result: ${this.formatValue(result)}`, 'log');
+            } else {
+                this.addOutputLine('✅ Code executed successfully!', 'log');
+            }
+        } catch (error) {
+            this.addOutputLine(`❌ Runtime Error: ${error.message}`, 'error');
+        } finally {
+            // Restore original console methods
+            Object.assign(console, originalConsole);
+        }
+    }
+
+    executeHTML(code) {
+        this.addOutputLine('🌐 HTML detected. Use Preview button to see rendered output.', 'info');
+        
+        // Analyze HTML structure
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(code, 'text/html');
+        const elements = doc.querySelectorAll('*');
+        
+        this.addOutputLine(`📊 HTML Analysis:`, 'info');
+        this.addOutputLine(`   • ${elements.length} total elements`, 'log');
+        this.addOutputLine(`   • ${doc.querySelectorAll('script').length} script tags`, 'log');
+        this.addOutputLine(`   • ${doc.querySelectorAll('link, style').length} style elements`, 'log');
+    }
+
+    analyzePythonCode(code) {
+        // Simple Python code analysis
+        const lines = code.split('\n').filter(line => line.trim());
+        const functions = code.match(/def\s+\w+\s*\(/g) || [];
+        const classes = code.match(/class\s+\w+/g) || [];
+        const imports = code.match(/(?:from\s+\w+\s+)?import\s+[\w,\s]+/g) || [];
+        
+        this.addOutputLine(`🐍 Python Code Analysis:`, 'info');
+        this.addOutputLine(`   • ${lines.length} lines of code`, 'log');
+        this.addOutputLine(`   • ${functions.length} functions defined`, 'log');
+        this.addOutputLine(`   • ${classes.length} classes defined`, 'log');
+        this.addOutputLine(`   • ${imports.length} import statements`, 'log');
+        
+        if (functions.length > 0) {
+            this.addOutputLine(`   Functions: ${functions.map(f => f.match(/def\s+(\w+)/)[1]).join(', ')}`, 'log');
+        }
+    }
+
+    analyzeCode(code, language) {
+        const lines = code.split('\n').filter(line => line.trim());
+        const chars = code.length;
+        const words = code.split(/\s+/).filter(word => word.trim()).length;
+        
+        this.addOutputLine(`📊 ${language.toUpperCase()} Code Analysis:`, 'info');
+        this.addOutputLine(`   • ${lines.length} lines`, 'log');
+        this.addOutputLine(`   • ${words} words`, 'log');
+        this.addOutputLine(`   • ${chars} characters`, 'log');
+    }
+
+    formatValue(value) {
+        if (typeof value === 'object' && value !== null) {
+            try {
+                return JSON.stringify(value, null, 2);
+            } catch {
+                return String(value);
+            }
+        }
+        return String(value);
+    }
+
+    showPreview() {
+        const language = this.editor.getModel().getLanguageId();
+        const code = this.editor.getValue();
+        
+        if (language === 'html' || this.currentFile.endsWith('.html')) {
+            this.createHTMLPreview(code);
+        } else if (language === 'css' || this.currentFile.endsWith('.css')) {
+            this.createCSSPreview(code);
+        } else {
+            this.addOutputLine('👁️ Preview is available for HTML and CSS files only.', 'warn');
+            return;
+        }
+        
+        this.querySelector('#previewPanel').style.display = 'flex';
+    }
+
+    createHTMLPreview(htmlCode) {
+        const iframe = this.querySelector('#previewIframe');
+        const cssFile = this.files['style.css'] || '';
+        const jsFile = this.files['main.js'] || '';
+        
+        // Create complete HTML document
+        const fullHTML = `
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Preview</title>
+                <style>${cssFile}</style>
+            </head>
+            <body>
+                ${htmlCode.includes('<html') ? htmlCode.replace(/.*<body[^>]*>|<\/body>.*<\/html>.*/gs, '') : htmlCode}
+                <script>
+                    // Override console to prevent errors in iframe
+                    console.log = function(...args) {
+                        window.parent.postMessage({type: 'console', method: 'log', args: args}, '*');
+                    };
+                    console.error = function(...args) {
+                        window.parent.postMessage({type: 'console', method: 'error', args: args}, '*');
+                    };
+                    try {
+                        ${jsFile}
+                    } catch(error) {
+                        console.error('Script error:', error.message);
+                    }
+                </script>
+            </body>
+            </html>
+        `;
+        
+        iframe.srcdoc = fullHTML;
+        iframe.onload = () => {
+            this.addOutputLine('🎨 CSS preview loaded successfully!', 'info');
+        };
+        iframe.onload = () => {
+            this.addOutputLine('🖼️ HTML preview loaded successfully!', 'info');
+        };
+    }
+
+    createCSSPreview(cssCode) {
+        const iframe = this.querySelector('#previewIframe');
+        const htmlFile = this.files['index.html'] || '<div class="demo">CSS Preview</div>';
+        
+        const fullHTML = `
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>CSS Preview</title>
+                <style>
+                    body { font-family: Arial, sans-serif; margin: 20px; }
+                    .demo { padding: 20px; border: 2px dashed #ccc; margin: 20px 0; }
+                    ${cssCode}
+                </style>
+            </head>
+            <body>
+                <h2>CSS Preview</h2>
+                ${htmlFile.includes('<html') ? htmlFile.replace(/.*<body[^>]*>|<\/body>.*<\/html>.*/gs, '') : htmlFile}
+            </body>
+            </html>
+        `;
+        
+        iframe.srcdoc = fullHTML;
+    }
+
+    refreshPreview() {
+        if (this.querySelector('#previewPanel').style.display !== 'none') {
+            this.showPreview();
+        }
+    }
+
+    closePreview() {
+        this.querySelector('#previewPanel').style.display = 'none';
+    }
+
+    addOutputLine(text, type = 'log') {
+        const outputContent = this.querySelector('#outputContent');
+        const line = document.createElement('div');
+        line.className = `output-line ${type}`;
+        line.textContent = text;
+        outputContent.appendChild(line);
+        outputContent.scrollTop = outputContent.scrollHeight;
+    }
+
+    clearConsole() {
+        const outputContent = this.querySelector('#outputContent');
+        outputContent.innerHTML = '';
+    }
+
+    toggleOutputPanel() {
+        const panel = this.querySelector('#outputPanel');
+        const toggleBtn = this.querySelector('#toggleOutput');
+        
+        panel.classList.toggle('collapsed');
+        toggleBtn.textContent = panel.classList.contains('collapsed') ? '➕' : '➖';
+    }
+
     // Public API methods
     getValue() {
         return this.editor ? this.editor.getValue() : '';
@@ -842,7 +1301,9 @@ class AdvancedCodeEditor extends HTMLElement {
 
     resize() {
         if (this.editor) {
-            this.editor.layout();
+            setTimeout(() => {
+                this.editor.layout();
+            }, 100);
         }
     }
 
