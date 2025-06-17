@@ -7,18 +7,18 @@ class AdvancedCodeEditor extends HTMLElement {
         this.attachShadow({ mode: 'open' });
         this.editor = null;
         this.monacoLoaded = false;
-        this.pendingValue = '';
-        this.pendingLanguage = 'javascript';
-        this.pendingTheme = 'vs-dark';
+        this.initialized = false;
+        this.loadingAttempts = 0;
+        this.maxAttempts = 3;
     }
 
     static get observedAttributes() {
-        return ['language', 'theme', 'value', 'readonly', 'minimap', 'line-numbers', 'word-wrap'];
+        return ['language', 'theme', 'value', 'readonly', 'height'];
     }
 
     connectedCallback() {
         this.render();
-        this.loadMonaco();
+        this.loadEditor();
     }
 
     disconnectedCallback() {
@@ -43,68 +43,89 @@ class AdvancedCodeEditor extends HTMLElement {
             case 'readonly':
                 this.setReadonly(newValue === 'true');
                 break;
-            case 'minimap':
-                this.updateOptions({ minimap: { enabled: newValue === 'true' } });
-                break;
-            case 'line-numbers':
-                this.updateOptions({ lineNumbers: newValue || 'on' });
-                break;
-            case 'word-wrap':
-                this.updateOptions({ wordWrap: newValue || 'off' });
+            case 'height':
+                this.updateHeight(newValue);
                 break;
         }
     }
 
     render() {
+        const height = this.getAttribute('height') || '400px';
+        
         this.shadowRoot.innerHTML = `
             <style>
                 :host {
                     display: block;
                     width: 100%;
-                    height: 400px;
-                    border: 1px solid #ccc;
-                    border-radius: 4px;
+                    height: ${height};
+                    border: 1px solid #e1e4e8;
+                    border-radius: 6px;
                     overflow: hidden;
-                    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+                    font-family: 'Monaco', 'Menlo', 'Consolas', 'Liberation Mono', 'Courier New', monospace;
+                    background: #f6f8fa;
                 }
 
                 .editor-container {
                     width: 100%;
                     height: 100%;
                     position: relative;
+                    display: flex;
+                    flex-direction: column;
                 }
 
                 .loading {
                     display: flex;
+                    flex-direction: column;
                     align-items: center;
                     justify-content: center;
                     height: 100%;
                     background: #1e1e1e;
                     color: #fff;
                     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    gap: 10px;
+                }
+
+                .loading-spinner {
+                    width: 24px;
+                    height: 24px;
+                    border: 2px solid #ffffff33;
+                    border-top: 2px solid #ffffff;
+                    border-radius: 50%;
+                    animation: spin 1s linear infinite;
+                }
+
+                @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
                 }
 
                 .toolbar {
-                    background: #2d2d30;
-                    border-bottom: 1px solid #3e3e42;
+                    background: #24292e;
+                    border-bottom: 1px solid #444d56;
                     padding: 8px 12px;
                     display: flex;
                     align-items: center;
                     gap: 12px;
                     font-size: 12px;
+                    flex-shrink: 0;
                 }
 
                 .toolbar select {
-                    background: #3c3c3c;
+                    background: #444d56;
                     color: #fff;
-                    border: 1px solid #5a5a5a;
+                    border: 1px solid #6a737d;
                     border-radius: 3px;
                     padding: 4px 8px;
                     font-size: 11px;
+                    outline: none;
+                }
+
+                .toolbar select:focus {
+                    border-color: #0366d6;
                 }
 
                 .toolbar button {
-                    background: #0e639c;
+                    background: #0366d6;
                     color: #fff;
                     border: none;
                     border-radius: 3px;
@@ -112,18 +133,70 @@ class AdvancedCodeEditor extends HTMLElement {
                     font-size: 11px;
                     cursor: pointer;
                     transition: background 0.2s;
+                    outline: none;
                 }
 
                 .toolbar button:hover {
-                    background: #1177bb;
+                    background: #0256cc;
+                }
+
+                .toolbar button:active {
+                    background: #024ea4;
                 }
 
                 .editor-area {
-                    height: calc(100% - 40px);
+                    flex: 1;
+                    position: relative;
+                    background: #fff;
+                }
+
+                .simple-editor {
+                    width: 100%;
+                    height: 100%;
+                    border: none;
+                    outline: none;
+                    resize: none;
+                    font-family: 'Monaco', 'Menlo', 'Consolas', 'Liberation Mono', 'Courier New', monospace;
+                    font-size: 14px;
+                    line-height: 1.5;
+                    padding: 12px;
+                    background: #fff;
+                    color: #24292e;
+                    tab-size: 4;
+                }
+
+                .simple-editor.dark {
+                    background: #1e1e1e;
+                    color: #d4d4d4;
+                }
+
+                .error-message {
+                    padding: 20px;
+                    text-align: center;
+                    color: #d73a49;
+                    background: #ffeaea;
+                    border: 1px solid #f97583;
+                    margin: 10px;
+                    border-radius: 4px;
+                    font-size: 14px;
                 }
 
                 .hidden {
-                    display: none;
+                    display: none !important;
+                }
+
+                .retry-button {
+                    background: #28a745;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    margin-top: 10px;
+                }
+
+                .retry-button:hover {
+                    background: #218838;
                 }
             </style>
             
@@ -131,39 +204,41 @@ class AdvancedCodeEditor extends HTMLElement {
                 <div class="toolbar">
                     <select id="languageSelect">
                         <option value="javascript">JavaScript</option>
-                        <option value="typescript">TypeScript</option>
-                        <option value="python">Python</option>
-                        <option value="java">Java</option>
-                        <option value="csharp">C#</option>
-                        <option value="cpp">C++</option>
                         <option value="html">HTML</option>
                         <option value="css">CSS</option>
+                        <option value="python">Python</option>
+                        <option value="java">Java</option>
                         <option value="json">JSON</option>
                         <option value="markdown">Markdown</option>
                         <option value="sql">SQL</option>
-                        <option value="php">PHP</option>
-                        <option value="go">Go</option>
-                        <option value="rust">Rust</option>
-                        <option value="yaml">YAML</option>
                         <option value="xml">XML</option>
+                        <option value="plaintext">Plain Text</option>
                     </select>
                     
                     <select id="themeSelect">
-                        <option value="vs-dark">Dark</option>
-                        <option value="vs">Light</option>
-                        <option value="hc-black">High Contrast Dark</option>
-                        <option value="hc-light">High Contrast Light</option>
+                        <option value="light">Light</option>
+                        <option value="dark">Dark</option>
                     </select>
                     
                     <button id="formatBtn">Format Code</button>
-                    <button id="fullscreenBtn">Fullscreen</button>
+                    <button id="copyBtn">Copy</button>
+                    <button id="clearBtn">Clear</button>
                 </div>
                 
                 <div class="editor-area">
                     <div class="loading" id="loading">
-                        <div>Loading Monaco Editor...</div>
+                        <div class="loading-spinner"></div>
+                        <div>Loading Code Editor...</div>
                     </div>
-                    <div id="editor" class="hidden"></div>
+                    
+                    <div id="error" class="error-message hidden">
+                        <div>Failed to load advanced editor</div>
+                        <button class="retry-button" id="retryBtn">Retry</button>
+                        <div style="margin-top: 10px; font-size: 12px;">Fallback mode available below</div>
+                    </div>
+                    
+                    <div id="monacoEditor" class="hidden"></div>
+                    <textarea id="fallbackEditor" class="simple-editor hidden" placeholder="Enter your code here..."></textarea>
                 </div>
             </div>
         `;
@@ -175,65 +250,121 @@ class AdvancedCodeEditor extends HTMLElement {
         const languageSelect = this.shadowRoot.getElementById('languageSelect');
         const themeSelect = this.shadowRoot.getElementById('themeSelect');
         const formatBtn = this.shadowRoot.getElementById('formatBtn');
-        const fullscreenBtn = this.shadowRoot.getElementById('fullscreenBtn');
+        const copyBtn = this.shadowRoot.getElementById('copyBtn');
+        const clearBtn = this.shadowRoot.getElementById('clearBtn');
+        const retryBtn = this.shadowRoot.getElementById('retryBtn');
+        const fallbackEditor = this.shadowRoot.getElementById('fallbackEditor');
 
         languageSelect.addEventListener('change', (e) => {
-            this.setAttribute('language', e.target.value);
+            this.setLanguage(e.target.value);
         });
 
         themeSelect.addEventListener('change', (e) => {
-            this.setAttribute('theme', e.target.value);
+            this.setTheme(e.target.value);
         });
 
         formatBtn.addEventListener('click', () => {
             this.formatCode();
         });
 
-        fullscreenBtn.addEventListener('click', () => {
-            this.toggleFullscreen();
+        copyBtn.addEventListener('click', () => {
+            this.copyToClipboard();
+        });
+
+        clearBtn.addEventListener('click', () => {
+            this.setValue('');
+        });
+
+        retryBtn.addEventListener('click', () => {
+            this.loadEditor();
+        });
+
+        // Fallback editor events
+        fallbackEditor.addEventListener('input', () => {
+            this.dispatchChangeEvent();
+        });
+
+        fallbackEditor.addEventListener('focus', () => {
+            this.dispatchEvent(new CustomEvent('focus'));
+        });
+
+        fallbackEditor.addEventListener('blur', () => {
+            this.dispatchEvent(new CustomEvent('blur'));
         });
     }
 
-    async loadMonaco() {
-        if (window.monaco) {
-            this.initializeEditor();
-            return;
-        }
+    async loadEditor() {
+        this.loadingAttempts++;
+        this.showLoading();
 
         try {
-            // Load Monaco Editor from CDN
-            const script = document.createElement('script');
-            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js';
-            script.onload = () => {
-                require.config({ 
-                    paths: { 
-                        'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' 
-                    }
-                });
-                
-                require(['vs/editor/editor.main'], () => {
-                    this.monacoLoaded = true;
-                    this.initializeEditor();
-                });
-            };
-            document.head.appendChild(script);
+            // Try to load Monaco Editor
+            await this.loadMonacoEditor();
         } catch (error) {
-            console.error('Failed to load Monaco Editor:', error);
-            this.shadowRoot.getElementById('loading').textContent = 'Failed to load editor';
+            console.warn('Monaco Editor failed to load, using fallback:', error);
+            this.useFallbackEditor();
         }
     }
 
-    initializeEditor() {
-        const editorContainer = this.shadowRoot.getElementById('editor');
-        const loading = this.shadowRoot.getElementById('loading');
+    async loadMonacoEditor() {
+        return new Promise((resolve, reject) => {
+            // Check if Monaco is already loaded
+            if (window.monaco) {
+                this.initializeMonacoEditor();
+                resolve();
+                return;
+            }
 
-        const language = this.getAttribute('language') || this.pendingLanguage;
-        const theme = this.getAttribute('theme') || this.pendingTheme;
-        const value = this.getAttribute('value') || this.pendingValue;
+            // Create a timeout for loading
+            const timeout = setTimeout(() => {
+                reject(new Error('Monaco loading timeout'));
+            }, 10000);
+
+            try {
+                // Load Monaco Editor using a more reliable method
+                const loaderScript = document.createElement('script');
+                loaderScript.src = 'https://unpkg.com/monaco-editor@0.45.0/min/vs/loader.js';
+                
+                loaderScript.onload = () => {
+                    // Configure Monaco loader
+                    window.require.config({ 
+                        paths: { 
+                            'vs': 'https://unpkg.com/monaco-editor@0.45.0/min/vs' 
+                        }
+                    });
+
+                    window.require(['vs/editor/editor.main'], () => {
+                        clearTimeout(timeout);
+                        this.monacoLoaded = true;
+                        this.initializeMonacoEditor();
+                        resolve();
+                    }, (error) => {
+                        clearTimeout(timeout);
+                        reject(error);
+                    });
+                };
+
+                loaderScript.onerror = () => {
+                    clearTimeout(timeout);
+                    reject(new Error('Failed to load Monaco loader script'));
+                };
+
+                document.head.appendChild(loaderScript);
+
+            } catch (error) {
+                clearTimeout(timeout);
+                reject(error);
+            }
+        });
+    }
+
+    initializeMonacoEditor() {
+        const editorContainer = this.shadowRoot.getElementById('monacoEditor');
+        
+        const language = this.getAttribute('language') || 'javascript';
+        const theme = this.getAttribute('theme') === 'dark' ? 'vs-dark' : 'vs';
+        const value = this.getAttribute('value') || '// Welcome to the code editor!\nconsole.log("Hello, World!");';
         const readonly = this.getAttribute('readonly') === 'true';
-        const minimap = this.getAttribute('minimap') !== 'false';
-        const lineNumbers = this.getAttribute('line-numbers') || 'on';
-        const wordWrap = this.getAttribute('word-wrap') || 'off';
 
         this.editor = monaco.editor.create(editorContainer, {
             value: value,
@@ -241,57 +372,28 @@ class AdvancedCodeEditor extends HTMLElement {
             theme: theme,
             readOnly: readonly,
             automaticLayout: true,
-            minimap: { enabled: minimap },
-            lineNumbers: lineNumbers,
-            wordWrap: wordWrap,
+            minimap: { enabled: true },
             fontSize: 14,
-            fontFamily: "'Monaco', 'Menlo', 'Ubuntu Mono', monospace",
+            fontFamily: "'Monaco', 'Menlo', 'Consolas', 'Liberation Mono', 'Courier New', monospace",
             scrollBeyondLastLine: false,
+            wordWrap: 'on',
+            lineNumbers: 'on',
             renderWhitespace: 'selection',
             contextmenu: true,
             mouseWheelZoom: true,
-            cursorBlinking: 'smooth',
             smoothScrolling: true,
-            suggest: {
-                showKeywords: true,
-                showSnippets: true,
-                showFunctions: true,
-                showVariables: true,
-                showModules: true,
-                showClasses: true
-            },
-            quickSuggestions: {
-                other: true,
-                comments: true,
-                strings: true
-            },
-            parameterHints: {
-                enabled: true
-            },
+            cursorBlinking: 'smooth',
+            tabSize: 4,
+            insertSpaces: true,
+            detectIndentation: true,
+            trimAutoWhitespace: true,
             formatOnPaste: true,
-            formatOnType: true,
-            tabCompletion: 'on',
-            wordBasedSuggestions: true,
-            codeLens: true,
-            folding: true,
-            foldingHighlight: true,
-            showFoldingControls: 'always',
-            matchBrackets: 'always',
-            autoIndent: 'full',
-            colorDecorators: true,
-            lightbulb: {
-                enabled: true
-            }
+            formatOnType: true
         });
 
         // Set up event listeners
         this.editor.onDidChangeModelContent(() => {
-            this.dispatchEvent(new CustomEvent('change', {
-                detail: {
-                    value: this.editor.getValue(),
-                    language: this.editor.getModel().getLanguageId()
-                }
-            }));
+            this.dispatchChangeEvent();
         });
 
         this.editor.onDidFocusEditorText(() => {
@@ -302,127 +404,187 @@ class AdvancedCodeEditor extends HTMLElement {
             this.dispatchEvent(new CustomEvent('blur'));
         });
 
-        // Update UI
-        loading.classList.add('hidden');
-        editorContainer.classList.remove('hidden');
+        this.hideLoading();
+        this.showMonacoEditor();
+        this.updateToolbar();
+        this.initialized = true;
+    }
 
-        // Update toolbar selects
+    useFallbackEditor() {
+        const fallbackEditor = this.shadowRoot.getElementById('fallbackEditor');
+        const value = this.getAttribute('value') || '// Welcome to the code editor!\nconsole.log("Hello, World!");';
+        const readonly = this.getAttribute('readonly') === 'true';
+        const theme = this.getAttribute('theme') || 'light';
+
+        fallbackEditor.value = value;
+        fallbackEditor.readOnly = readonly;
+        
+        if (theme === 'dark') {
+            fallbackEditor.classList.add('dark');
+        }
+
+        this.hideLoading();
+        this.showFallbackEditor();
+        this.updateToolbar();
+        this.initialized = true;
+
+        if (this.loadingAttempts < this.maxAttempts) {
+            this.showError();
+        }
+    }
+
+    // UI Control Methods
+    showLoading() {
+        this.shadowRoot.getElementById('loading').classList.remove('hidden');
+        this.shadowRoot.getElementById('error').classList.add('hidden');
+        this.shadowRoot.getElementById('monacoEditor').classList.add('hidden');
+        this.shadowRoot.getElementById('fallbackEditor').classList.add('hidden');
+    }
+
+    hideLoading() {
+        this.shadowRoot.getElementById('loading').classList.add('hidden');
+    }
+
+    showError() {
+        this.shadowRoot.getElementById('error').classList.remove('hidden');
+    }
+
+    showMonacoEditor() {
+        this.shadowRoot.getElementById('monacoEditor').classList.remove('hidden');
+        this.shadowRoot.getElementById('fallbackEditor').classList.add('hidden');
+    }
+
+    showFallbackEditor() {
+        this.shadowRoot.getElementById('fallbackEditor').classList.remove('hidden');
+        this.shadowRoot.getElementById('monacoEditor').classList.add('hidden');
+    }
+
+    updateToolbar() {
+        const language = this.getAttribute('language') || 'javascript';
+        const theme = this.getAttribute('theme') || 'light';
+        
         this.shadowRoot.getElementById('languageSelect').value = language;
         this.shadowRoot.getElementById('themeSelect').value = theme;
     }
 
-    // Public API methods
+    // Public API Methods
     getValue() {
-        return this.editor ? this.editor.getValue() : this.pendingValue;
+        if (this.editor && this.monacoLoaded) {
+            return this.editor.getValue();
+        } else {
+            const fallbackEditor = this.shadowRoot.getElementById('fallbackEditor');
+            return fallbackEditor.value;
+        }
     }
 
     setValue(value) {
-        if (this.editor) {
+        if (this.editor && this.monacoLoaded) {
             this.editor.setValue(value || '');
         } else {
-            this.pendingValue = value || '';
+            const fallbackEditor = this.shadowRoot.getElementById('fallbackEditor');
+            fallbackEditor.value = value || '';
         }
-    }
-
-    getLanguage() {
-        return this.editor ? this.editor.getModel().getLanguageId() : this.pendingLanguage;
+        this.setAttribute('value', value || '');
     }
 
     setLanguage(language) {
-        if (this.editor) {
+        if (this.editor && this.monacoLoaded) {
             monaco.editor.setModelLanguage(this.editor.getModel(), language);
-        } else {
-            this.pendingLanguage = language;
         }
+        this.setAttribute('language', language);
+        this.shadowRoot.getElementById('languageSelect').value = language;
     }
 
     setTheme(theme) {
-        if (this.editor) {
-            monaco.editor.setTheme(theme);
+        if (this.editor && this.monacoLoaded) {
+            const monacoTheme = theme === 'dark' ? 'vs-dark' : 'vs';
+            monaco.editor.setTheme(monacoTheme);
         } else {
-            this.pendingTheme = theme;
+            const fallbackEditor = this.shadowRoot.getElementById('fallbackEditor');
+            if (theme === 'dark') {
+                fallbackEditor.classList.add('dark');
+            } else {
+                fallbackEditor.classList.remove('dark');
+            }
         }
+        this.setAttribute('theme', theme);
+        this.shadowRoot.getElementById('themeSelect').value = theme;
     }
 
     setReadonly(readonly) {
-        if (this.editor) {
+        if (this.editor && this.monacoLoaded) {
             this.editor.updateOptions({ readOnly: readonly });
+        } else {
+            const fallbackEditor = this.shadowRoot.getElementById('fallbackEditor');
+            fallbackEditor.readOnly = readonly;
         }
+        this.setAttribute('readonly', readonly.toString());
     }
 
-    updateOptions(options) {
-        if (this.editor) {
-            this.editor.updateOptions(options);
+    updateHeight(height) {
+        this.style.height = height;
+        if (this.editor && this.monacoLoaded) {
+            setTimeout(() => this.editor.layout(), 100);
         }
     }
 
     formatCode() {
-        if (this.editor) {
+        if (this.editor && this.monacoLoaded) {
             this.editor.getAction('editor.action.formatDocument').run();
+        } else {
+            // Simple formatting for fallback editor
+            const value = this.getValue();
+            try {
+                const formatted = this.simpleFormat(value);
+                this.setValue(formatted);
+            } catch (e) {
+                console.warn('Formatting failed:', e);
+            }
         }
+    }
+
+    simpleFormat(code) {
+        // Basic JavaScript formatting
+        return code
+            .replace(/\{\s*\n/g, '{\n')
+            .replace(/\n\s*\}/g, '\n}')
+            .replace(/;\s*\n/g, ';\n')
+            .split('\n')
+            .map(line => line.trim())
+            .join('\n');
+    }
+
+    copyToClipboard() {
+        const value = this.getValue();
+        navigator.clipboard.writeText(value).then(() => {
+            // Visual feedback
+            const copyBtn = this.shadowRoot.getElementById('copyBtn');
+            const originalText = copyBtn.textContent;
+            copyBtn.textContent = 'Copied!';
+            setTimeout(() => {
+                copyBtn.textContent = originalText;
+            }, 1000);
+        }).catch(err => {
+            console.error('Failed to copy:', err);
+        });
     }
 
     focus() {
-        if (this.editor) {
+        if (this.editor && this.monacoLoaded) {
             this.editor.focus();
-        }
-    }
-
-    toggleFullscreen() {
-        if (this.classList.contains('fullscreen')) {
-            this.classList.remove('fullscreen');
-            this.style.position = '';
-            this.style.top = '';
-            this.style.left = '';
-            this.style.width = '';
-            this.style.height = '';
-            this.style.zIndex = '';
-            this.style.background = '';
         } else {
-            this.classList.add('fullscreen');
-            this.style.position = 'fixed';
-            this.style.top = '0';
-            this.style.left = '0';
-            this.style.width = '100vw';
-            this.style.height = '100vh';
-            this.style.zIndex = '9999';
-            this.style.background = '#1e1e1e';
+            const fallbackEditor = this.shadowRoot.getElementById('fallbackEditor');
+            fallbackEditor.focus();
         }
-        
-        // Trigger layout update
-        setTimeout(() => {
-            if (this.editor) {
-                this.editor.layout();
+    }
+
+    dispatchChangeEvent() {
+        this.dispatchEvent(new CustomEvent('change', {
+            detail: {
+                value: this.getValue(),
+                language: this.getAttribute('language') || 'javascript'
             }
-        }, 100);
-    }
-
-    insertText(text, position) {
-        if (this.editor) {
-            const pos = position || this.editor.getPosition();
-            this.editor.executeEdits('insertText', [{
-                range: new monaco.Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column),
-                text: text
-            }]);
-        }
-    }
-
-    getSelectedText() {
-        if (this.editor) {
-            const selection = this.editor.getSelection();
-            return this.editor.getModel().getValueInRange(selection);
-        }
-        return '';
-    }
-
-    replaceSelectedText(text) {
-        if (this.editor) {
-            const selection = this.editor.getSelection();
-            this.editor.executeEdits('replaceText', [{
-                range: selection,
-                text: text
-            }]);
-        }
+        }));
     }
 }
 
@@ -430,4 +592,6 @@ class AdvancedCodeEditor extends HTMLElement {
 customElements.define('advanced-code-editor', AdvancedCodeEditor);
 
 // Export for use in Wix
-export default AdvancedCodeEditor;
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = AdvancedCodeEditor;
+}
