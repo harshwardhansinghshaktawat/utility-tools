@@ -10,7 +10,7 @@ class AdvancedCodeEditor extends HTMLElement {
     this.currentTheme = 'vs-dark';
     this.currentValue = '';
     this.monacoLoaded = false;
-    this.resizeObserver = null;
+    this.totalHeight = 500; // Default height in pixels
   }
 
   static get observedAttributes() {
@@ -18,11 +18,11 @@ class AdvancedCodeEditor extends HTMLElement {
   }
 
   connectedCallback() {
+    this.calculateDimensions();
     this.render();
     this.loadMonacoEditor().then(() => {
       this.initializeEditor();
       this.setupEventListeners();
-      this.setupResizeObserver();
     }).catch(err => {
       console.error('Failed to load Monaco Editor:', err);
       this.showError();
@@ -33,9 +33,6 @@ class AdvancedCodeEditor extends HTMLElement {
     if (this.editor) {
       this.editor.dispose();
     }
-    if (this.resizeObserver) {
-      this.resizeObserver.disconnect();
-    }
   }
 
   attributeChangedCallback(name, oldValue, newValue) {
@@ -45,12 +42,13 @@ class AdvancedCodeEditor extends HTMLElement {
       case 'language':
         window.monaco.editor.setModelLanguage(this.editor.getModel(), newValue);
         this.currentLanguage = newValue;
-        this.updateLanguageSelect();
+        this.updateLanguageInfo();
         break;
       case 'theme':
         window.monaco.editor.setTheme(newValue);
         this.currentTheme = newValue;
         this.updateThemeSelect();
+        this.updateUITheme();
         break;
       case 'value':
         if (this.editor.getValue() !== newValue) {
@@ -63,170 +61,223 @@ class AdvancedCodeEditor extends HTMLElement {
         break;
       case 'height':
       case 'width':
-        this.updateDimensions();
+        this.calculateDimensions();
+        this.updateContainerSize();
         break;
     }
   }
 
+  calculateDimensions() {
+    // Parse height attribute (supports px, vh, or just numbers)
+    const heightAttr = this.getAttribute('height') || '500px';
+    if (heightAttr.includes('px')) {
+      this.totalHeight = parseInt(heightAttr);
+    } else if (heightAttr.includes('vh')) {
+      this.totalHeight = (parseInt(heightAttr) / 100) * window.innerHeight;
+    } else {
+      this.totalHeight = parseInt(heightAttr) || 500;
+    }
+    
+    // Ensure minimum height
+    this.totalHeight = Math.max(this.totalHeight, 300);
+    
+    console.log('Calculated total height:', this.totalHeight);
+  }
+
   render() {
-    const height = this.getAttribute('height') || '500px';
     const width = this.getAttribute('width') || '100%';
+    const isDark = this.getAttribute('theme') === 'vs-dark';
+    
+    // Calculate exact pixel heights
+    const toolbarHeight = 56;
+    const statusHeight = 32;
+    const editorHeight = this.totalHeight - toolbarHeight - statusHeight;
+    
+    console.log('Render heights - Toolbar:', toolbarHeight, 'Editor:', editorHeight, 'Status:', statusHeight);
     
     this.shadowRoot.innerHTML = `
       <style>
+        * {
+          box-sizing: border-box;
+          margin: 0;
+          padding: 0;
+        }
+
         :host {
           display: block;
           width: ${width};
-          height: ${height};
-          min-height: 300px;
-          max-height: none;
-          font-family: 'Monaco', 'Menlo', 'Consolas', 'Liberation Mono', 'Courier New', monospace;
-          border: 1px solid #e1e4e8;
-          border-radius: 6px;
+          height: ${this.totalHeight}px;
+          font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Source Code Pro', 'Menlo', 'Consolas', monospace;
+          --primary-color: #007acc;
+          --success-color: #28a745;
+          --danger-color: #dc3545;
+          --warning-color: #ffc107;
+          --dark-bg: #1e1e1e;
+          --dark-surface: #252526;
+          --dark-border: #3e3e42;
+          --light-bg: #ffffff;
+          --light-surface: #f8f9fa;
+          --light-border: #e1e5e9;
+          border-radius: 12px;
           overflow: hidden;
-          background: #ffffff;
-          box-sizing: border-box;
+          box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+          background: ${isDark ? 'var(--dark-bg)' : 'var(--light-bg)'};
+          border: 1px solid ${isDark ? 'var(--dark-border)' : 'var(--light-border)'};
         }
 
-        .editor-wrapper {
+        .editor-container {
+          width: 100%;
+          height: ${this.totalHeight}px;
           display: flex;
           flex-direction: column;
-          width: 100%;
-          height: 100%;
-          min-height: 300px;
-          box-sizing: border-box;
+          background: ${isDark ? 'var(--dark-bg)' : 'var(--light-bg)'};
         }
 
         .toolbar {
+          width: 100%;
+          height: ${toolbarHeight}px;
+          background: ${isDark ? 
+            'linear-gradient(135deg, #2d2d30 0%, #252526 100%)' : 
+            'linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%)'};
+          border-bottom: 1px solid ${isDark ? 'var(--dark-border)' : 'var(--light-border)'};
+          display: flex;
+          align-items: center;
+          padding: 0 20px;
+          gap: 16px;
+          backdrop-filter: blur(10px);
+        }
+
+        .toolbar-section {
           display: flex;
           align-items: center;
           gap: 12px;
-          padding: 8px 12px;
-          background: linear-gradient(to bottom, #fafbfc, #eff3f6);
-          border-bottom: 1px solid #e1e4e8;
-          font-size: 12px;
-          height: 40px;
-          min-height: 40px;
-          max-height: 40px;
-          flex-shrink: 0;
-          box-sizing: border-box;
         }
 
-        .toolbar-group {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .toolbar-separator {
+        .toolbar-divider {
           width: 1px;
-          height: 20px;
-          background: #e1e4e8;
-        }
-
-        select {
-          padding: 4px 8px;
-          font-size: 11px;
-          border: 1px solid #d1d5da;
-          border-radius: 3px;
-          background: #ffffff;
-          color: #24292e;
-          outline: none;
-          cursor: pointer;
-          min-width: 80px;
-        }
-
-        select:focus {
-          border-color: #0366d6;
-          box-shadow: 0 0 0 2px rgba(3, 102, 214, 0.3);
-        }
-
-        button {
-          padding: 4px 12px;
-          font-size: 11px;
-          border: 1px solid transparent;
-          border-radius: 3px;
-          cursor: pointer;
-          transition: all 0.2s ease;
-          outline: none;
-          font-weight: 500;
-        }
-
-        .btn-primary {
-          background: #0366d6;
-          color: #ffffff;
-          border-color: #0366d6;
-        }
-
-        .btn-primary:hover {
-          background: #0256cc;
-          border-color: #0256cc;
-        }
-
-        .btn-secondary {
-          background: #f6f8fa;
-          color: #24292e;
-          border-color: #d1d5da;
-        }
-
-        .btn-secondary:hover {
-          background: #e1e4e8;
-          border-color: #c6cbd1;
-        }
-
-        .btn-success {
-          background: #28a745;
-          color: #ffffff;
-          border-color: #28a745;
-        }
-
-        .btn-success:hover {
-          background: #218838;
-          border-color: #1e7e34;
-        }
-
-        .btn-danger {
-          background: #d73a49;
-          color: #ffffff;
-          border-color: #d73a49;
-        }
-
-        .btn-danger:hover {
-          background: #cb2431;
-          border-color: #b52d3a;
+          height: 24px;
+          background: ${isDark ? 'var(--dark-border)' : 'var(--light-border)'};
+          opacity: 0.5;
         }
 
         .toolbar-right {
           margin-left: auto;
         }
 
-        #editor-container {
-          width: 100%;
-          height: calc(100% - 64px); /* Total height minus toolbar (40px) and status bar (24px) */
-          min-height: 250px;
-          position: relative;
-          background: #ffffff;
-          box-sizing: border-box;
+        select {
+          height: 36px;
+          padding: 0 12px;
+          font-size: 13px;
+          font-weight: 500;
+          border: 1.5px solid ${isDark ? 'var(--dark-border)' : 'var(--light-border)'};
+          border-radius: 8px;
+          background: ${isDark ? 'var(--dark-surface)' : 'var(--light-surface)'};
+          color: ${isDark ? '#cccccc' : '#333333'};
+          outline: none;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          min-width: 120px;
         }
 
-        .loading {
+        select:hover {
+          border-color: var(--primary-color);
+          transform: translateY(-1px);
+        }
+
+        select:focus {
+          border-color: var(--primary-color);
+          box-shadow: 0 0 0 3px rgba(0, 122, 204, 0.2);
+        }
+
+        .btn {
+          height: 36px;
+          padding: 0 16px;
+          font-size: 13px;
+          font-weight: 600;
+          border: none;
+          border-radius: 8px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          outline: none;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+
+        .btn:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .btn:active {
+          transform: translateY(0);
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .btn-primary {
+          background: linear-gradient(135deg, var(--primary-color) 0%, #005a9e 100%);
+          color: #ffffff;
+        }
+
+        .btn-success {
+          background: linear-gradient(135deg, var(--success-color) 0%, #1e7e34 100%);
+          color: #ffffff;
+        }
+
+        .btn-danger {
+          background: linear-gradient(135deg, var(--danger-color) 0%, #bd2130 100%);
+          color: #ffffff;
+        }
+
+        .btn-secondary {
+          background: ${isDark ? 'var(--dark-surface)' : 'var(--light-surface)'};
+          color: ${isDark ? '#cccccc' : '#333333'};
+          border: 1.5px solid ${isDark ? 'var(--dark-border)' : 'var(--light-border)'};
+        }
+
+        .btn-icon {
+          font-size: 16px;
+        }
+
+        #monaco-container {
+          width: 100%;
+          height: ${editorHeight}px;
+          position: relative;
+          background: ${isDark ? 'var(--dark-bg)' : 'var(--light-bg)'};
+        }
+
+        .loading-overlay {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: ${isDark ? 
+            'linear-gradient(135deg, #1e1e1e 0%, #252526 100%)' : 
+            'linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%)'};
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          height: 100%;
-          background: #1e1e1e;
-          color: #ffffff;
-          gap: 12px;
+          gap: 20px;
+          z-index: 1000;
         }
 
         .loading-spinner {
-          width: 24px;
-          height: 24px;
-          border: 2px solid #ffffff33;
-          border-top: 2px solid #ffffff;
+          width: 40px;
+          height: 40px;
+          border: 3px solid transparent;
+          border-top: 3px solid var(--primary-color);
           border-radius: 50%;
           animation: spin 1s linear infinite;
+        }
+
+        .loading-text {
+          font-size: 16px;
+          font-weight: 500;
+          color: ${isDark ? '#cccccc' : '#666666'};
         }
 
         @keyframes spin {
@@ -234,95 +285,122 @@ class AdvancedCodeEditor extends HTMLElement {
           100% { transform: rotate(360deg); }
         }
 
-        .error {
+        .error-overlay {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          height: 100%;
-          background: #ffeaea;
-          color: #d73a49;
-          padding: 20px;
+          gap: 20px;
+          color: white;
           text-align: center;
-          gap: 12px;
+          padding: 40px;
         }
 
-        .error button {
-          background: #d73a49;
-          color: #ffffff;
-          border: none;
-          padding: 8px 16px;
-          border-radius: 4px;
-          cursor: pointer;
+        .error-icon {
+          font-size: 48px;
+          opacity: 0.8;
+        }
+
+        .error-title {
+          font-size: 20px;
+          font-weight: 600;
+          margin-bottom: 8px;
+        }
+
+        .error-message {
+          font-size: 14px;
+          opacity: 0.9;
+          line-height: 1.5;
         }
 
         .status-bar {
+          width: 100%;
+          height: ${statusHeight}px;
+          background: ${isDark ? 
+            'linear-gradient(135deg, #252526 0%, #2d2d30 100%)' : 
+            'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)'};
+          border-top: 1px solid ${isDark ? 'var(--dark-border)' : 'var(--light-border)'};
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 4px 12px;
-          background: #f6f8fa;
-          border-top: 1px solid #e1e4e8;
-          font-size: 11px;
-          color: #586069;
-          height: 24px;
-          min-height: 24px;
-          max-height: 24px;
-          flex-shrink: 0;
-          box-sizing: border-box;
+          padding: 0 20px;
+          font-size: 12px;
+          color: ${isDark ? '#cccccc' : '#666666'};
+          font-weight: 500;
         }
 
-        .status-left {
+        .status-section {
           display: flex;
           align-items: center;
-          gap: 12px;
+          gap: 16px;
         }
 
-        .status-right {
+        .status-item {
           display: flex;
           align-items: center;
-          gap: 12px;
+          gap: 6px;
+        }
+
+        .status-icon {
+          font-size: 14px;
+          opacity: 0.7;
         }
 
         .hidden {
           display: none !important;
         }
 
-        /* Dark theme adjustments */
-        :host([theme="vs-dark"]) .toolbar {
-          background: linear-gradient(to bottom, #2d2d30, #252526);
-          border-bottom-color: #3e3e42;
+        /* Fullscreen styles */
+        :host(.fullscreen) {
+          position: fixed !important;
+          top: 0 !important;
+          left: 0 !important;
+          width: 100vw !important;
+          height: 100vh !important;
+          z-index: 9999 !important;
+          border-radius: 0 !important;
         }
 
-        :host([theme="vs-dark"]) select {
-          background: #3c3c3c;
-          color: #cccccc;
-          border-color: #5a5a5a;
-        }
-
-        :host([theme="vs-dark"]) .status-bar {
-          background: #252526;
-          border-top-color: #3e3e42;
-          color: #cccccc;
-        }
-
-        :host([theme="vs-dark"]) {
-          background: #1e1e1e;
-          border-color: #3e3e42;
+        /* Responsive design */
+        @media (max-width: 768px) {
+          .toolbar {
+            padding: 0 12px;
+            gap: 8px;
+          }
+          
+          .toolbar-section {
+            gap: 6px;
+          }
+          
+          .btn {
+            padding: 0 12px;
+            font-size: 12px;
+          }
+          
+          select {
+            min-width: 100px;
+            font-size: 12px;
+          }
         }
       </style>
       
-      <div class="editor-wrapper">
+      <div class="editor-container">
+        <!-- Toolbar -->
         <div class="toolbar">
-          <div class="toolbar-group">
-            <select id="language-select" title="Select Language">
+          <div class="toolbar-section">
+            <select id="language-select" title="Programming Language">
               <option value="javascript">JavaScript</option>
               <option value="typescript">TypeScript</option>
               <option value="python">Python</option>
               <option value="java">Java</option>
               <option value="csharp">C#</option>
               <option value="cpp">C++</option>
-              <option value="c">C</option>
               <option value="html">HTML</option>
               <option value="css">CSS</option>
               <option value="scss">SCSS</option>
@@ -334,75 +412,92 @@ class AdvancedCodeEditor extends HTMLElement {
               <option value="php">PHP</option>
               <option value="go">Go</option>
               <option value="rust">Rust</option>
-              <option value="kotlin">Kotlin</option>
               <option value="swift">Swift</option>
+              <option value="kotlin">Kotlin</option>
               <option value="ruby">Ruby</option>
               <option value="shell">Shell</option>
               <option value="dockerfile">Dockerfile</option>
               <option value="plaintext">Plain Text</option>
             </select>
             
-            <select id="theme-select" title="Select Theme">
-              <option value="vs">Light</option>
-              <option value="vs-dark">Dark</option>
-              <option value="hc-black">High Contrast Dark</option>
-              <option value="hc-light">High Contrast Light</option>
+            <select id="theme-select" title="Editor Theme">
+              <option value="vs">☀️ Light</option>
+              <option value="vs-dark">🌙 Dark</option>
+              <option value="hc-black">⚫ High Contrast Dark</option>
+              <option value="hc-light">⚪ High Contrast Light</option>
             </select>
           </div>
 
-          <div class="toolbar-separator"></div>
+          <div class="toolbar-divider"></div>
 
-          <div class="toolbar-group">
-            <button id="format-btn" class="btn-primary" title="Format Code (Shift+Alt+F)">
+          <div class="toolbar-section">
+            <button id="format-btn" class="btn btn-primary" title="Format Code">
+              <span class="btn-icon">✨</span>
               Format
             </button>
-            <button id="copy-btn" class="btn-success" title="Copy to Clipboard">
+            <button id="copy-btn" class="btn btn-success" title="Copy to Clipboard">
+              <span class="btn-icon">📋</span>
               Copy
             </button>
-            <button id="clear-btn" class="btn-danger" title="Clear All">
+            <button id="clear-btn" class="btn btn-danger" title="Clear All Code">
+              <span class="btn-icon">🗑️</span>
               Clear
             </button>
           </div>
 
-          <div class="toolbar-separator"></div>
+          <div class="toolbar-divider"></div>
 
-          <div class="toolbar-group">
-            <button id="undo-btn" class="btn-secondary" title="Undo (Ctrl+Z)">
-              ↶ Undo
+          <div class="toolbar-section">
+            <button id="undo-btn" class="btn btn-secondary" title="Undo">
+              <span class="btn-icon">↶</span>
             </button>
-            <button id="redo-btn" class="btn-secondary" title="Redo (Ctrl+Y)">
-              ↷ Redo
+            <button id="redo-btn" class="btn btn-secondary" title="Redo">
+              <span class="btn-icon">↷</span>
             </button>
           </div>
 
           <div class="toolbar-right">
-            <button id="fullscreen-btn" class="btn-secondary" title="Toggle Fullscreen">
-              ⛶ Fullscreen
+            <button id="fullscreen-btn" class="btn btn-secondary" title="Toggle Fullscreen">
+              <span class="btn-icon">⛶</span>
             </button>
           </div>
         </div>
         
-        <div id="editor-container">
-          <div id="loading" class="loading">
+        <!-- Monaco Editor Container -->
+        <div id="monaco-container">
+          <div id="loading" class="loading-overlay">
             <div class="loading-spinner"></div>
-            <div>Loading Monaco Editor...</div>
+            <div class="loading-text">Loading Advanced Code Editor...</div>
           </div>
-          <div id="error" class="error hidden">
-            <div>❌ Failed to load Monaco Editor</div>
-            <div>Please check your internet connection and try again.</div>
-            <button id="retry-btn">Retry</button>
+          
+          <div id="error" class="error-overlay hidden">
+            <div class="error-icon">❌</div>
+            <div class="error-title">Failed to Load Editor</div>
+            <div class="error-message">
+              Unable to load Monaco Editor. Please check your internet connection and try again.
+            </div>
+            <button id="retry-btn" class="btn btn-secondary">🔄 Retry</button>
           </div>
         </div>
 
+        <!-- Status Bar -->
         <div class="status-bar">
-          <div class="status-left">
-            <span id="language-info">JavaScript</span>
-            <span id="encoding-info">UTF-8</span>
+          <div class="status-section">
+            <div class="status-item">
+              <span class="status-icon">🚀</span>
+              <span id="language-info">JavaScript</span>
+            </div>
+            <div class="status-item">
+              <span class="status-icon">📊</span>
+              <span id="line-count">1 lines</span>
+            </div>
           </div>
-          <div class="status-right">
-            <span id="cursor-position">Ln 1, Col 1</span>
-            <span id="selection-info"></span>
-            <span id="line-count">1 lines</span>
+          <div class="status-section">
+            <div class="status-item">
+              <span class="status-icon">📍</span>
+              <span id="cursor-position">Ln 1, Col 1</span>
+            </div>
+            <div class="status-item" id="selection-info"></div>
           </div>
         </div>
       </div>
@@ -417,7 +512,6 @@ class AdvancedCodeEditor extends HTMLElement {
         return;
       }
 
-      // Set a timeout for loading
       const timeout = setTimeout(() => {
         reject(new Error('Monaco Editor loading timeout'));
       }, 15000);
@@ -439,14 +533,12 @@ class AdvancedCodeEditor extends HTMLElement {
           resolve();
         }, (err) => {
           clearTimeout(timeout);
-          console.error('Failed to load Monaco Editor:', err);
           reject(err);
         });
       };
 
       script.onerror = (err) => {
         clearTimeout(timeout);
-        console.error('Failed to load Monaco loader:', err);
         reject(err);
       };
 
@@ -457,19 +549,37 @@ class AdvancedCodeEditor extends HTMLElement {
   initializeEditor() {
     if (!this.monacoLoaded || !window.monaco) return;
 
-    const container = this.shadowRoot.querySelector('#editor-container');
+    const container = this.shadowRoot.querySelector('#monaco-container');
     const loading = this.shadowRoot.querySelector('#loading');
+
+    console.log('Monaco container dimensions:', container.offsetWidth, 'x', container.offsetHeight);
 
     try {
       this.editor = window.monaco.editor.create(container, {
-        value: this.getAttribute('value') || '// Welcome to Advanced Code Editor!\n// Start coding here...\n\nfunction helloWorld() {\n    console.log("Hello, World!");\n    return "Monaco Editor is ready!";\n}\n\nhelloWorld();',
+        value: this.getAttribute('value') || `// 🚀 Welcome to Advanced Code Editor!
+// This is a professional VS Code-quality editor
+
+function fibonacci(n) {
+    if (n <= 1) return n;
+    return fibonacci(n - 1) + fibonacci(n - 2);
+}
+
+// Calculate the 10th Fibonacci number
+const result = fibonacci(10);
+console.log(\`The 10th Fibonacci number is: \${result}\`);
+
+// Try editing this code and see the magic! ✨
+const greeting = "Hello, World!";
+console.log(greeting);`,
         language: this.getAttribute('language') || this.currentLanguage,
         theme: this.getAttribute('theme') || this.currentTheme,
         automaticLayout: true,
         minimap: { enabled: true },
         scrollBeyondLastLine: false,
-        fontSize: 14,
-        fontFamily: "'Monaco', 'Menlo', 'Consolas', 'Liberation Mono', 'Courier New', monospace",
+        fontSize: 15,
+        fontFamily: "'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Source Code Pro', 'Menlo', 'Consolas', monospace",
+        lineHeight: 24,
+        letterSpacing: 0.5,
         lineNumbers: 'on',
         wordWrap: 'on',
         formatOnPaste: true,
@@ -484,6 +594,7 @@ class AdvancedCodeEditor extends HTMLElement {
         mouseWheelZoom: true,
         smoothScrolling: true,
         cursorBlinking: 'smooth',
+        cursorSmoothCaretAnimation: true,
         renderWhitespace: 'selection',
         showUnused: true,
         folding: true,
@@ -491,9 +602,8 @@ class AdvancedCodeEditor extends HTMLElement {
         unfoldOnClickAfterEndOfLine: true,
         colorDecorators: true,
         codeLens: true,
-        lightbulb: {
-          enabled: true
-        },
+        roundedSelection: true,
+        padding: { top: 16, bottom: 16 },
         suggest: {
           showWords: true,
           showSnippets: true,
@@ -501,7 +611,8 @@ class AdvancedCodeEditor extends HTMLElement {
           showVariables: true,
           showModules: true,
           showClasses: true,
-          showKeywords: true
+          showKeywords: true,
+          insertMode: 'replace'
         },
         quickSuggestions: {
           other: true,
@@ -512,15 +623,14 @@ class AdvancedCodeEditor extends HTMLElement {
           enabled: true
         },
         acceptSuggestionOnCommitCharacter: true,
-        acceptSuggestionOnEnter: 'on',
-        accessibilitySupport: 'auto'
+        acceptSuggestionOnEnter: 'on'
       });
 
       this.currentValue = this.editor.getValue();
       this.currentLanguage = this.getAttribute('language') || this.currentLanguage;
       this.currentTheme = this.getAttribute('theme') || this.currentTheme;
 
-      // Set up event listeners for editor
+      // Set up event listeners
       this.editor.onDidChangeModelContent(() => {
         const newValue = this.editor.getValue();
         this.currentValue = newValue;
@@ -540,47 +650,47 @@ class AdvancedCodeEditor extends HTMLElement {
         this.updateStatusBar();
       });
 
-      this.editor.onDidFocusEditorText(() => {
-        this.dispatchEvent(new CustomEvent('focus', {
-          bubbles: true,
-          composed: true
-        }));
-      });
-
-      this.editor.onDidBlurEditorText(() => {
-        this.dispatchEvent(new CustomEvent('blur', {
-          bubbles: true,
-          composed: true
-        }));
-      });
-
-      // Hide loading and show editor
+      // Hide loading
       loading.classList.add('hidden');
       
-      // Ensure container has proper dimensions before layout
-      const containerHeight = container.clientHeight;
-      const containerWidth = container.clientWidth;
+      // Force layout
+      this.editor.layout();
+      this.updateToolbarSelects();
+      this.updateStatusBar();
       
-      console.log('Editor container dimensions:', containerWidth, 'x', containerHeight);
-      
-      // Force layout multiple times to ensure proper sizing
-      setTimeout(() => {
-        this.editor.layout();
-        this.updateToolbarSelects();
-        this.updateStatusBar();
-      }, 50);
-      
-      setTimeout(() => {
-        this.editor.layout();
-      }, 200);
-      
-      setTimeout(() => {
-        this.editor.layout();
-      }, 500);
+      console.log('Monaco editor initialized successfully');
 
     } catch (error) {
       console.error('Failed to initialize Monaco Editor:', error);
       this.showError();
+    }
+  }
+
+  updateContainerSize() {
+    this.calculateDimensions();
+    
+    const toolbarHeight = 56;
+    const statusHeight = 32;
+    const editorHeight = this.totalHeight - toolbarHeight - statusHeight;
+    
+    // Update container styles
+    const container = this.shadowRoot.querySelector('.editor-container');
+    const monacoContainer = this.shadowRoot.querySelector('#monaco-container');
+    
+    if (container) {
+      container.style.height = `${this.totalHeight}px`;
+    }
+    
+    if (monacoContainer) {
+      monacoContainer.style.height = `${editorHeight}px`;
+    }
+    
+    this.style.height = `${this.totalHeight}px`;
+    
+    // Force Monaco layout
+    if (this.editor) {
+      setTimeout(() => this.editor.layout(), 0);
+      setTimeout(() => this.editor.layout(), 100);
     }
   }
 
@@ -614,7 +724,7 @@ class AdvancedCodeEditor extends HTMLElement {
     });
 
     clearBtn?.addEventListener('click', () => {
-      if (confirm('Are you sure you want to clear all code?')) {
+      if (confirm('🗑️ Are you sure you want to clear all code?')) {
         this.setValue('');
       }
     });
@@ -640,50 +750,11 @@ class AdvancedCodeEditor extends HTMLElement {
       this.showLoading();
       this.loadMonacoEditor().then(() => {
         this.initializeEditor();
+        this.setupEventListeners();
       }).catch(() => {
         this.showError();
       });
     });
-  }
-
-  setupResizeObserver() {
-    if (typeof ResizeObserver !== 'undefined') {
-      this.resizeObserver = new ResizeObserver(() => {
-        if (this.editor) {
-          this.editor.layout();
-        }
-      });
-      this.resizeObserver.observe(this);
-    }
-  }
-
-  updateDimensions() {
-    const height = this.getAttribute('height') || '500px';
-    const width = this.getAttribute('width') || '100%';
-    
-    // Update host element dimensions
-    this.style.height = height;
-    this.style.width = width;
-    
-    // Update CSS custom properties if needed
-    const wrapper = this.shadowRoot.querySelector('.editor-wrapper');
-    if (wrapper) {
-      wrapper.style.height = '100%';
-      wrapper.style.width = '100%';
-    }
-    
-    const container = this.shadowRoot.querySelector('#editor-container');
-    if (container) {
-      // Force recalculation of editor container height
-      container.style.height = 'calc(100% - 64px)';
-    }
-    
-    // Force Monaco editor layout with multiple attempts
-    if (this.editor) {
-      setTimeout(() => this.editor.layout(), 0);
-      setTimeout(() => this.editor.layout(), 100);
-      setTimeout(() => this.editor.layout(), 300);
-    }
   }
 
   updateToolbarSelects() {
@@ -694,16 +765,26 @@ class AdvancedCodeEditor extends HTMLElement {
     if (themeSelect) themeSelect.value = this.currentTheme;
   }
 
-  updateLanguageSelect() {
-    const languageSelect = this.shadowRoot.querySelector('#language-select');
-    if (languageSelect) languageSelect.value = this.currentLanguage;
-    this.updateStatusBar();
+  updateLanguageInfo() {
+    const languageInfo = this.shadowRoot.querySelector('#language-info');
+    if (languageInfo) {
+      languageInfo.textContent = this.currentLanguage.toUpperCase();
+    }
   }
 
   updateThemeSelect() {
     const themeSelect = this.shadowRoot.querySelector('#theme-select');
     if (themeSelect) themeSelect.value = this.currentTheme;
-    this.setAttribute('theme', this.currentTheme);
+  }
+
+  updateUITheme() {
+    // Re-render to apply theme changes to UI
+    this.render();
+    if (this.monacoLoaded && this.editor) {
+      // Re-initialize editor in new container
+      this.initializeEditor();
+      this.setupEventListeners();
+    }
   }
 
   updateStatusBar() {
@@ -731,9 +812,9 @@ class AdvancedCodeEditor extends HTMLElement {
       if (selectedText) {
         const lines = selectedText.split('\n').length;
         const chars = selectedText.length;
-        selectionInfo.textContent = `(${chars} chars, ${lines} lines selected)`;
+        selectionInfo.innerHTML = `<span class="status-icon">📝</span>${chars} chars, ${lines} lines selected`;
       } else {
-        selectionInfo.textContent = '';
+        selectionInfo.innerHTML = '';
       }
     }
 
@@ -769,11 +850,11 @@ class AdvancedCodeEditor extends HTMLElement {
     navigator.clipboard.writeText(value).then(() => {
       const copyBtn = this.shadowRoot.querySelector('#copy-btn');
       if (copyBtn) {
-        const originalText = copyBtn.textContent;
-        copyBtn.textContent = 'Copied!';
+        const originalContent = copyBtn.innerHTML;
+        copyBtn.innerHTML = '<span class="btn-icon">✅</span>Copied!';
         setTimeout(() => {
-          copyBtn.textContent = originalText;
-        }, 1500);
+          copyBtn.innerHTML = originalContent;
+        }, 2000);
       }
     }).catch(err => {
       console.error('Failed to copy:', err);
@@ -781,31 +862,15 @@ class AdvancedCodeEditor extends HTMLElement {
   }
 
   toggleFullscreen() {
-    if (this.classList.contains('fullscreen-mode')) {
-      this.classList.remove('fullscreen-mode');
-      this.style.position = '';
-      this.style.top = '';
-      this.style.left = '';
-      this.style.width = this.getAttribute('width') || '100%';
-      this.style.height = this.getAttribute('height') || '500px';
-      this.style.zIndex = '';
-      this.style.background = '';
+    if (this.classList.contains('fullscreen')) {
+      this.classList.remove('fullscreen');
+      this.updateContainerSize();
     } else {
-      this.classList.add('fullscreen-mode');
-      this.style.position = 'fixed';
-      this.style.top = '0';
-      this.style.left = '0';
-      this.style.width = '100vw';
-      this.style.height = '100vh';
-      this.style.zIndex = '9999';
-      this.style.background = this.currentTheme === 'vs-dark' ? '#1e1e1e' : '#ffffff';
+      this.classList.add('fullscreen');
+      this.calculateDimensions();
+      this.totalHeight = window.innerHeight;
+      this.updateContainerSize();
     }
-    
-    setTimeout(() => {
-      if (this.editor) {
-        this.editor.layout();
-      }
-    }, 100);
   }
 
   // Public API Methods
@@ -846,34 +911,6 @@ class AdvancedCodeEditor extends HTMLElement {
   layout() {
     if (this.editor) {
       this.editor.layout();
-    }
-  }
-
-  insertText(text, position) {
-    if (this.editor) {
-      const pos = position || this.editor.getPosition();
-      this.editor.executeEdits('insertText', [{
-        range: new window.monaco.Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column),
-        text: text
-      }]);
-    }
-  }
-
-  getSelectedText() {
-    if (this.editor) {
-      const selection = this.editor.getSelection();
-      return this.editor.getModel().getValueInRange(selection);
-    }
-    return '';
-  }
-
-  replaceSelection(text) {
-    if (this.editor) {
-      const selection = this.editor.getSelection();
-      this.editor.executeEdits('replaceSelection', [{
-        range: selection,
-        text: text
-      }]);
     }
   }
 }
