@@ -10,7 +10,6 @@ class AdvancedCodeEditor extends HTMLElement {
     this.currentTheme = 'vs-dark';
     this.currentValue = '';
     this.monacoLoaded = false;
-    this.totalHeight = 500; // Default height in pixels
   }
 
   static get observedAttributes() {
@@ -18,7 +17,6 @@ class AdvancedCodeEditor extends HTMLElement {
   }
 
   connectedCallback() {
-    this.calculateDimensions();
     this.render();
     this.loadMonacoEditor().then(() => {
       this.initializeEditor();
@@ -42,13 +40,12 @@ class AdvancedCodeEditor extends HTMLElement {
       case 'language':
         window.monaco.editor.setModelLanguage(this.editor.getModel(), newValue);
         this.currentLanguage = newValue;
-        this.updateLanguageInfo();
+        this.updateLanguageSelect();
         break;
       case 'theme':
         window.monaco.editor.setTheme(newValue);
         this.currentTheme = newValue;
         this.updateThemeSelect();
-        this.updateUITheme();
         break;
       case 'value':
         if (this.editor.getValue() !== newValue) {
@@ -61,223 +58,125 @@ class AdvancedCodeEditor extends HTMLElement {
         break;
       case 'height':
       case 'width':
-        this.calculateDimensions();
-        this.updateContainerSize();
+        this.updateDimensions();
         break;
     }
   }
 
-  calculateDimensions() {
-    // Parse height attribute (supports px, vh, or just numbers)
-    const heightAttr = this.getAttribute('height') || '500px';
-    if (heightAttr.includes('px')) {
-      this.totalHeight = parseInt(heightAttr);
-    } else if (heightAttr.includes('vh')) {
-      this.totalHeight = (parseInt(heightAttr) / 100) * window.innerHeight;
-    } else {
-      this.totalHeight = parseInt(heightAttr) || 500;
-    }
-    
-    // Ensure minimum height
-    this.totalHeight = Math.max(this.totalHeight, 300);
-    
-    console.log('Calculated total height:', this.totalHeight);
-  }
-
   render() {
+    const height = this.getAttribute('height') || '500px';
     const width = this.getAttribute('width') || '100%';
-    const isDark = this.getAttribute('theme') === 'vs-dark';
-    
-    // Calculate exact pixel heights
-    const toolbarHeight = 56;
-    const statusHeight = 32;
-    const editorHeight = this.totalHeight - toolbarHeight - statusHeight;
-    
-    console.log('Render heights - Toolbar:', toolbarHeight, 'Editor:', editorHeight, 'Status:', statusHeight);
     
     this.shadowRoot.innerHTML = `
       <style>
-        * {
-          box-sizing: border-box;
-          margin: 0;
-          padding: 0;
-        }
-
         :host {
           display: block;
           width: ${width};
-          height: ${this.totalHeight}px;
-          font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Source Code Pro', 'Menlo', 'Consolas', monospace;
-          --primary-color: #007acc;
-          --success-color: #28a745;
-          --danger-color: #dc3545;
-          --warning-color: #ffc107;
-          --dark-bg: #1e1e1e;
-          --dark-surface: #252526;
-          --dark-border: #3e3e42;
-          --light-bg: #ffffff;
-          --light-surface: #f8f9fa;
-          --light-border: #e1e5e9;
-          border-radius: 12px;
+          height: ${height};
+          min-height: 400px;
+          font-family: 'Monaco', 'Menlo', 'Consolas', 'Liberation Mono', 'Courier New', monospace;
+          border: 1px solid #ccc;
+          border-radius: 4px;
           overflow: hidden;
-          box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-          background: ${isDark ? 'var(--dark-bg)' : 'var(--light-bg)'};
-          border: 1px solid ${isDark ? 'var(--dark-border)' : 'var(--light-border)'};
+          background: #fff;
         }
 
-        .editor-container {
-          width: 100%;
-          height: ${this.totalHeight}px;
+        .editor-wrapper {
           display: flex;
           flex-direction: column;
-          background: ${isDark ? 'var(--dark-bg)' : 'var(--light-bg)'};
+          height: 100%;
+          width: 100%;
         }
 
         .toolbar {
-          width: 100%;
-          height: ${toolbarHeight}px;
-          background: ${isDark ? 
-            'linear-gradient(135deg, #2d2d30 0%, #252526 100%)' : 
-            'linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%)'};
-          border-bottom: 1px solid ${isDark ? 'var(--dark-border)' : 'var(--light-border)'};
           display: flex;
           align-items: center;
-          padding: 0 20px;
-          gap: 16px;
-          backdrop-filter: blur(10px);
+          gap: 10px;
+          padding: 8px 12px;
+          background: #f5f5f5;
+          border-bottom: 1px solid #ddd;
+          flex-shrink: 0;
+          height: 40px;
+          box-sizing: border-box;
         }
 
-        .toolbar-section {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
-
-        .toolbar-divider {
-          width: 1px;
-          height: 24px;
-          background: ${isDark ? 'var(--dark-border)' : 'var(--light-border)'};
-          opacity: 0.5;
-        }
-
-        .toolbar-right {
-          margin-left: auto;
-        }
-
-        select {
-          height: 36px;
-          padding: 0 12px;
+        .toolbar select {
+          padding: 4px 8px;
           font-size: 13px;
-          font-weight: 500;
-          border: 1.5px solid ${isDark ? 'var(--dark-border)' : 'var(--light-border)'};
-          border-radius: 8px;
-          background: ${isDark ? 'var(--dark-surface)' : 'var(--light-surface)'};
-          color: ${isDark ? '#cccccc' : '#333333'};
-          outline: none;
-          cursor: pointer;
-          transition: all 0.2s ease;
-          min-width: 120px;
+          border: 1px solid #ccc;
+          border-radius: 3px;
+          background: #fff;
+          min-width: 100px;
         }
 
-        select:hover {
-          border-color: var(--primary-color);
-          transform: translateY(-1px);
-        }
-
-        select:focus {
-          border-color: var(--primary-color);
-          box-shadow: 0 0 0 3px rgba(0, 122, 204, 0.2);
-        }
-
-        .btn {
-          height: 36px;
-          padding: 0 16px;
+        .toolbar button {
+          padding: 4px 12px;
           font-size: 13px;
-          font-weight: 600;
-          border: none;
-          border-radius: 8px;
+          border: 1px solid #007acc;
+          border-radius: 3px;
+          background: #007acc;
+          color: white;
           cursor: pointer;
-          transition: all 0.2s ease;
-          outline: none;
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
+          transition: background 0.2s;
         }
 
-        .btn:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        .toolbar button:hover {
+          background: #005a9e;
         }
 
-        .btn:active {
-          transform: translateY(0);
-          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        .toolbar button.secondary {
+          background: #6c757d;
+          border-color: #6c757d;
         }
 
-        .btn-primary {
-          background: linear-gradient(135deg, var(--primary-color) 0%, #005a9e 100%);
-          color: #ffffff;
+        .toolbar button.secondary:hover {
+          background: #545b62;
         }
 
-        .btn-success {
-          background: linear-gradient(135deg, var(--success-color) 0%, #1e7e34 100%);
-          color: #ffffff;
+        .toolbar button.success {
+          background: #28a745;
+          border-color: #28a745;
         }
 
-        .btn-danger {
-          background: linear-gradient(135deg, var(--danger-color) 0%, #bd2130 100%);
-          color: #ffffff;
+        .toolbar button.success:hover {
+          background: #218838;
         }
 
-        .btn-secondary {
-          background: ${isDark ? 'var(--dark-surface)' : 'var(--light-surface)'};
-          color: ${isDark ? '#cccccc' : '#333333'};
-          border: 1.5px solid ${isDark ? 'var(--dark-border)' : 'var(--light-border)'};
+        .toolbar button.danger {
+          background: #dc3545;
+          border-color: #dc3545;
         }
 
-        .btn-icon {
-          font-size: 16px;
+        .toolbar button.danger:hover {
+          background: #c82333;
         }
 
-        #monaco-container {
+        .editor-container {
+          flex: 1;
           width: 100%;
-          height: ${editorHeight}px;
+          height: calc(100% - 40px);
           position: relative;
-          background: ${isDark ? 'var(--dark-bg)' : 'var(--light-bg)'};
+          /* IMPORTANT: No additional styling that could interfere with Monaco */
         }
 
-        .loading-overlay {
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: ${isDark ? 
-            'linear-gradient(135deg, #1e1e1e 0%, #252526 100%)' : 
-            'linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%)'};
+        .loading {
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          gap: 20px;
-          z-index: 1000;
+          height: 100%;
+          background: #1e1e1e;
+          color: #fff;
+          gap: 15px;
         }
 
         .loading-spinner {
-          width: 40px;
-          height: 40px;
-          border: 3px solid transparent;
-          border-top: 3px solid var(--primary-color);
+          width: 30px;
+          height: 30px;
+          border: 3px solid #ffffff33;
+          border-top: 3px solid #ffffff;
           border-radius: 50%;
           animation: spin 1s linear infinite;
-        }
-
-        .loading-text {
-          font-size: 16px;
-          font-weight: 500;
-          color: ${isDark ? '#cccccc' : '#666666'};
         }
 
         @keyframes spin {
@@ -285,78 +184,47 @@ class AdvancedCodeEditor extends HTMLElement {
           100% { transform: rotate(360deg); }
         }
 
-        .error-overlay {
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+        .error {
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          gap: 20px;
-          color: white;
+          height: 100%;
+          background: #f8d7da;
+          color: #721c24;
+          padding: 20px;
           text-align: center;
-          padding: 40px;
         }
 
-        .error-icon {
-          font-size: 48px;
-          opacity: 0.8;
-        }
-
-        .error-title {
-          font-size: 20px;
-          font-weight: 600;
-          margin-bottom: 8px;
-        }
-
-        .error-message {
-          font-size: 14px;
-          opacity: 0.9;
-          line-height: 1.5;
+        .error button {
+          margin-top: 10px;
+          padding: 8px 16px;
+          background: #dc3545;
+          color: white;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
         }
 
         .status-bar {
-          width: 100%;
-          height: ${statusHeight}px;
-          background: ${isDark ? 
-            'linear-gradient(135deg, #252526 0%, #2d2d30 100%)' : 
-            'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)'};
-          border-top: 1px solid ${isDark ? 'var(--dark-border)' : 'var(--light-border)'};
           display: flex;
-          align-items: center;
           justify-content: space-between;
-          padding: 0 20px;
+          align-items: center;
+          padding: 4px 12px;
+          background: #f8f9fa;
+          border-top: 1px solid #ddd;
           font-size: 12px;
-          color: ${isDark ? '#cccccc' : '#666666'};
-          font-weight: 500;
-        }
-
-        .status-section {
-          display: flex;
-          align-items: center;
-          gap: 16px;
-        }
-
-        .status-item {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-        }
-
-        .status-icon {
-          font-size: 14px;
-          opacity: 0.7;
+          color: #666;
+          flex-shrink: 0;
+          height: 24px;
+          box-sizing: border-box;
         }
 
         .hidden {
           display: none !important;
         }
 
-        /* Fullscreen styles */
+        /* Fullscreen mode */
         :host(.fullscreen) {
           position: fixed !important;
           top: 0 !important;
@@ -366,138 +234,63 @@ class AdvancedCodeEditor extends HTMLElement {
           z-index: 9999 !important;
           border-radius: 0 !important;
         }
-
-        /* Responsive design */
-        @media (max-width: 768px) {
-          .toolbar {
-            padding: 0 12px;
-            gap: 8px;
-          }
-          
-          .toolbar-section {
-            gap: 6px;
-          }
-          
-          .btn {
-            padding: 0 12px;
-            font-size: 12px;
-          }
-          
-          select {
-            min-width: 100px;
-            font-size: 12px;
-          }
-        }
       </style>
       
-      <div class="editor-container">
-        <!-- Toolbar -->
+      <div class="editor-wrapper">
         <div class="toolbar">
-          <div class="toolbar-section">
-            <select id="language-select" title="Programming Language">
-              <option value="javascript">JavaScript</option>
-              <option value="typescript">TypeScript</option>
-              <option value="python">Python</option>
-              <option value="java">Java</option>
-              <option value="csharp">C#</option>
-              <option value="cpp">C++</option>
-              <option value="html">HTML</option>
-              <option value="css">CSS</option>
-              <option value="scss">SCSS</option>
-              <option value="json">JSON</option>
-              <option value="xml">XML</option>
-              <option value="yaml">YAML</option>
-              <option value="markdown">Markdown</option>
-              <option value="sql">SQL</option>
-              <option value="php">PHP</option>
-              <option value="go">Go</option>
-              <option value="rust">Rust</option>
-              <option value="swift">Swift</option>
-              <option value="kotlin">Kotlin</option>
-              <option value="ruby">Ruby</option>
-              <option value="shell">Shell</option>
-              <option value="dockerfile">Dockerfile</option>
-              <option value="plaintext">Plain Text</option>
-            </select>
-            
-            <select id="theme-select" title="Editor Theme">
-              <option value="vs">☀️ Light</option>
-              <option value="vs-dark">🌙 Dark</option>
-              <option value="hc-black">⚫ High Contrast Dark</option>
-              <option value="hc-light">⚪ High Contrast Light</option>
-            </select>
-          </div>
-
-          <div class="toolbar-divider"></div>
-
-          <div class="toolbar-section">
-            <button id="format-btn" class="btn btn-primary" title="Format Code">
-              <span class="btn-icon">✨</span>
-              Format
-            </button>
-            <button id="copy-btn" class="btn btn-success" title="Copy to Clipboard">
-              <span class="btn-icon">📋</span>
-              Copy
-            </button>
-            <button id="clear-btn" class="btn btn-danger" title="Clear All Code">
-              <span class="btn-icon">🗑️</span>
-              Clear
-            </button>
-          </div>
-
-          <div class="toolbar-divider"></div>
-
-          <div class="toolbar-section">
-            <button id="undo-btn" class="btn btn-secondary" title="Undo">
-              <span class="btn-icon">↶</span>
-            </button>
-            <button id="redo-btn" class="btn btn-secondary" title="Redo">
-              <span class="btn-icon">↷</span>
-            </button>
-          </div>
-
-          <div class="toolbar-right">
-            <button id="fullscreen-btn" class="btn btn-secondary" title="Toggle Fullscreen">
-              <span class="btn-icon">⛶</span>
-            </button>
-          </div>
+          <select id="language-select">
+            <option value="javascript">JavaScript</option>
+            <option value="typescript">TypeScript</option>
+            <option value="python">Python</option>
+            <option value="java">Java</option>
+            <option value="csharp">C#</option>
+            <option value="cpp">C++</option>
+            <option value="html">HTML</option>
+            <option value="css">CSS</option>
+            <option value="json">JSON</option>
+            <option value="xml">XML</option>
+            <option value="markdown">Markdown</option>
+            <option value="sql">SQL</option>
+            <option value="php">PHP</option>
+            <option value="go">Go</option>
+            <option value="rust">Rust</option>
+            <option value="plaintext">Plain Text</option>
+          </select>
+          
+          <select id="theme-select">
+            <option value="vs">Light</option>
+            <option value="vs-dark">Dark</option>
+            <option value="hc-black">High Contrast</option>
+          </select>
+          
+          <button id="format-btn">Format</button>
+          <button id="copy-btn" class="success">Copy</button>
+          <button id="clear-btn" class="danger">Clear</button>
+          <button id="fullscreen-btn" class="secondary">Fullscreen</button>
         </div>
         
-        <!-- Monaco Editor Container -->
-        <div id="monaco-container">
-          <div id="loading" class="loading-overlay">
+        <div class="editor-container">
+          <div id="loading" class="loading">
             <div class="loading-spinner"></div>
-            <div class="loading-text">Loading Advanced Code Editor...</div>
+            <div>Loading Monaco Editor...</div>
           </div>
           
-          <div id="error" class="error-overlay hidden">
-            <div class="error-icon">❌</div>
-            <div class="error-title">Failed to Load Editor</div>
-            <div class="error-message">
-              Unable to load Monaco Editor. Please check your internet connection and try again.
-            </div>
-            <button id="retry-btn" class="btn btn-secondary">🔄 Retry</button>
+          <div id="error" class="error hidden">
+            <div>Failed to load Monaco Editor</div>
+            <div>Please check your internet connection.</div>
+            <button id="retry-btn">Retry</button>
           </div>
+          
+          <div id="monaco-editor" class="hidden"></div>
         </div>
 
-        <!-- Status Bar -->
         <div class="status-bar">
-          <div class="status-section">
-            <div class="status-item">
-              <span class="status-icon">🚀</span>
-              <span id="language-info">JavaScript</span>
-            </div>
-            <div class="status-item">
-              <span class="status-icon">📊</span>
-              <span id="line-count">1 lines</span>
-            </div>
+          <div>
+            <span id="language-info">JavaScript</span> • 
+            <span id="line-count">1 lines</span>
           </div>
-          <div class="status-section">
-            <div class="status-item">
-              <span class="status-icon">📍</span>
-              <span id="cursor-position">Ln 1, Col 1</span>
-            </div>
-            <div class="status-item" id="selection-info"></div>
+          <div>
+            <span id="cursor-position">Ln 1, Col 1</span>
           </div>
         </div>
       </div>
@@ -514,7 +307,7 @@ class AdvancedCodeEditor extends HTMLElement {
 
       const timeout = setTimeout(() => {
         reject(new Error('Monaco Editor loading timeout'));
-      }, 15000);
+      }, 10000);
 
       const script = document.createElement('script');
       script.src = 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js';
@@ -549,37 +342,21 @@ class AdvancedCodeEditor extends HTMLElement {
   initializeEditor() {
     if (!this.monacoLoaded || !window.monaco) return;
 
-    const container = this.shadowRoot.querySelector('#monaco-container');
+    const container = this.shadowRoot.querySelector('#monaco-editor');
     const loading = this.shadowRoot.querySelector('#loading');
 
-    console.log('Monaco container dimensions:', container.offsetWidth, 'x', container.offsetHeight);
-
     try {
+      // Create Monaco editor with minimal, safe configuration
       this.editor = window.monaco.editor.create(container, {
-        value: this.getAttribute('value') || `// 🚀 Welcome to Advanced Code Editor!
-// This is a professional VS Code-quality editor
-
-function fibonacci(n) {
-    if (n <= 1) return n;
-    return fibonacci(n - 1) + fibonacci(n - 2);
-}
-
-// Calculate the 10th Fibonacci number
-const result = fibonacci(10);
-console.log(\`The 10th Fibonacci number is: \${result}\`);
-
-// Try editing this code and see the magic! ✨
-const greeting = "Hello, World!";
-console.log(greeting);`,
+        value: this.getAttribute('value') || '// Welcome to Monaco Editor!\nconsole.log("Hello, World!");',
         language: this.getAttribute('language') || this.currentLanguage,
         theme: this.getAttribute('theme') || this.currentTheme,
         automaticLayout: true,
+        fontSize: 14,
+        lineHeight: 20,
+        fontFamily: "'Monaco', 'Menlo', 'Consolas', 'Liberation Mono', 'Courier New', monospace",
         minimap: { enabled: true },
         scrollBeyondLastLine: false,
-        fontSize: 15,
-        fontFamily: "'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Source Code Pro', 'Menlo', 'Consolas', monospace",
-        lineHeight: 24,
-        letterSpacing: 0.5,
         lineNumbers: 'on',
         wordWrap: 'on',
         formatOnPaste: true,
@@ -589,48 +366,21 @@ console.log(greeting);`,
         insertSpaces: true,
         autoClosingBrackets: 'always',
         autoClosingQuotes: 'always',
-        autoIndent: 'full',
-        contextmenu: true,
-        mouseWheelZoom: true,
-        smoothScrolling: true,
-        cursorBlinking: 'smooth',
-        cursorSmoothCaretAnimation: true,
-        renderWhitespace: 'selection',
-        showUnused: true,
-        folding: true,
-        foldingHighlight: true,
-        unfoldOnClickAfterEndOfLine: true,
-        colorDecorators: true,
-        codeLens: true,
-        roundedSelection: true,
-        padding: { top: 16, bottom: 16 },
         suggest: {
           showWords: true,
           showSnippets: true,
-          showFunctions: true,
-          showVariables: true,
-          showModules: true,
-          showClasses: true,
-          showKeywords: true,
-          insertMode: 'replace'
         },
-        quickSuggestions: {
-          other: true,
-          comments: true,
-          strings: true
-        },
-        parameterHints: {
-          enabled: true
-        },
-        acceptSuggestionOnCommitCharacter: true,
-        acceptSuggestionOnEnter: 'on'
+        quickSuggestions: true,
+        contextmenu: true,
+        mouseWheelZoom: false, // Disable to prevent browser hanging
+        smoothScrolling: false, // Disable to prevent performance issues
       });
 
       this.currentValue = this.editor.getValue();
       this.currentLanguage = this.getAttribute('language') || this.currentLanguage;
       this.currentTheme = this.getAttribute('theme') || this.currentTheme;
 
-      // Set up event listeners
+      // Set up essential event listeners only
       this.editor.onDidChangeModelContent(() => {
         const newValue = this.editor.getValue();
         this.currentValue = newValue;
@@ -646,51 +396,20 @@ console.log(greeting);`,
         this.updateStatusBar();
       });
 
-      this.editor.onDidChangeCursorSelection(() => {
-        this.updateStatusBar();
-      });
-
-      // Hide loading
+      // Show editor and hide loading
       loading.classList.add('hidden');
+      container.classList.remove('hidden');
       
-      // Force layout
-      this.editor.layout();
-      this.updateToolbarSelects();
-      this.updateStatusBar();
-      
-      console.log('Monaco editor initialized successfully');
+      // Force layout after a short delay
+      setTimeout(() => {
+        this.editor.layout();
+        this.updateToolbarSelects();
+        this.updateStatusBar();
+      }, 100);
 
     } catch (error) {
       console.error('Failed to initialize Monaco Editor:', error);
       this.showError();
-    }
-  }
-
-  updateContainerSize() {
-    this.calculateDimensions();
-    
-    const toolbarHeight = 56;
-    const statusHeight = 32;
-    const editorHeight = this.totalHeight - toolbarHeight - statusHeight;
-    
-    // Update container styles
-    const container = this.shadowRoot.querySelector('.editor-container');
-    const monacoContainer = this.shadowRoot.querySelector('#monaco-container');
-    
-    if (container) {
-      container.style.height = `${this.totalHeight}px`;
-    }
-    
-    if (monacoContainer) {
-      monacoContainer.style.height = `${editorHeight}px`;
-    }
-    
-    this.style.height = `${this.totalHeight}px`;
-    
-    // Force Monaco layout
-    if (this.editor) {
-      setTimeout(() => this.editor.layout(), 0);
-      setTimeout(() => this.editor.layout(), 100);
     }
   }
 
@@ -700,8 +419,6 @@ console.log(greeting);`,
     const formatBtn = this.shadowRoot.querySelector('#format-btn');
     const copyBtn = this.shadowRoot.querySelector('#copy-btn');
     const clearBtn = this.shadowRoot.querySelector('#clear-btn');
-    const undoBtn = this.shadowRoot.querySelector('#undo-btn');
-    const redoBtn = this.shadowRoot.querySelector('#redo-btn');
     const fullscreenBtn = this.shadowRoot.querySelector('#fullscreen-btn');
     const retryBtn = this.shadowRoot.querySelector('#retry-btn');
 
@@ -715,7 +432,11 @@ console.log(greeting);`,
 
     formatBtn?.addEventListener('click', async () => {
       if (this.monacoLoaded && this.editor) {
-        await this.editor.getAction('editor.action.formatDocument').run();
+        try {
+          await this.editor.getAction('editor.action.formatDocument').run();
+        } catch (e) {
+          console.warn('Format failed:', e);
+        }
       }
     });
 
@@ -724,20 +445,8 @@ console.log(greeting);`,
     });
 
     clearBtn?.addEventListener('click', () => {
-      if (confirm('🗑️ Are you sure you want to clear all code?')) {
+      if (confirm('Clear all code?')) {
         this.setValue('');
-      }
-    });
-
-    undoBtn?.addEventListener('click', () => {
-      if (this.editor) {
-        this.editor.trigger('keyboard', 'undo', null);
-      }
-    });
-
-    redoBtn?.addEventListener('click', () => {
-      if (this.editor) {
-        this.editor.trigger('keyboard', 'redo', null);
       }
     });
 
@@ -757,6 +466,19 @@ console.log(greeting);`,
     });
   }
 
+  updateDimensions() {
+    const height = this.getAttribute('height') || '500px';
+    const width = this.getAttribute('width') || '100%';
+    
+    this.style.height = height;
+    this.style.width = width;
+    
+    if (this.editor) {
+      // Simple layout call without excessive retries
+      setTimeout(() => this.editor.layout(), 100);
+    }
+  }
+
   updateToolbarSelects() {
     const languageSelect = this.shadowRoot.querySelector('#language-select');
     const themeSelect = this.shadowRoot.querySelector('#theme-select');
@@ -765,11 +487,10 @@ console.log(greeting);`,
     if (themeSelect) themeSelect.value = this.currentTheme;
   }
 
-  updateLanguageInfo() {
-    const languageInfo = this.shadowRoot.querySelector('#language-info');
-    if (languageInfo) {
-      languageInfo.textContent = this.currentLanguage.toUpperCase();
-    }
+  updateLanguageSelect() {
+    const languageSelect = this.shadowRoot.querySelector('#language-select');
+    if (languageSelect) languageSelect.value = this.currentLanguage;
+    this.updateStatusBar();
   }
 
   updateThemeSelect() {
@@ -777,26 +498,14 @@ console.log(greeting);`,
     if (themeSelect) themeSelect.value = this.currentTheme;
   }
 
-  updateUITheme() {
-    // Re-render to apply theme changes to UI
-    this.render();
-    if (this.monacoLoaded && this.editor) {
-      // Re-initialize editor in new container
-      this.initializeEditor();
-      this.setupEventListeners();
-    }
-  }
-
   updateStatusBar() {
     if (!this.editor) return;
 
     const languageInfo = this.shadowRoot.querySelector('#language-info');
     const cursorPosition = this.shadowRoot.querySelector('#cursor-position');
-    const selectionInfo = this.shadowRoot.querySelector('#selection-info');
     const lineCount = this.shadowRoot.querySelector('#line-count');
 
     const position = this.editor.getPosition();
-    const selection = this.editor.getSelection();
     const model = this.editor.getModel();
 
     if (languageInfo) {
@@ -805,17 +514,6 @@ console.log(greeting);`,
 
     if (cursorPosition && position) {
       cursorPosition.textContent = `Ln ${position.lineNumber}, Col ${position.column}`;
-    }
-
-    if (selectionInfo && selection) {
-      const selectedText = model.getValueInRange(selection);
-      if (selectedText) {
-        const lines = selectedText.split('\n').length;
-        const chars = selectedText.length;
-        selectionInfo.innerHTML = `<span class="status-icon">📝</span>${chars} chars, ${lines} lines selected`;
-      } else {
-        selectionInfo.innerHTML = '';
-      }
     }
 
     if (lineCount && model) {
@@ -827,17 +525,21 @@ console.log(greeting);`,
   showLoading() {
     const loading = this.shadowRoot.querySelector('#loading');
     const error = this.shadowRoot.querySelector('#error');
+    const editor = this.shadowRoot.querySelector('#monaco-editor');
     
     if (loading) loading.classList.remove('hidden');
     if (error) error.classList.add('hidden');
+    if (editor) editor.classList.add('hidden');
   }
 
   showError() {
     const loading = this.shadowRoot.querySelector('#loading');
     const error = this.shadowRoot.querySelector('#error');
+    const editor = this.shadowRoot.querySelector('#monaco-editor');
     
     if (loading) loading.classList.add('hidden');
     if (error) error.classList.remove('hidden');
+    if (editor) editor.classList.add('hidden');
   }
 
   hideError() {
@@ -850,11 +552,11 @@ console.log(greeting);`,
     navigator.clipboard.writeText(value).then(() => {
       const copyBtn = this.shadowRoot.querySelector('#copy-btn');
       if (copyBtn) {
-        const originalContent = copyBtn.innerHTML;
-        copyBtn.innerHTML = '<span class="btn-icon">✅</span>Copied!';
+        const originalText = copyBtn.textContent;
+        copyBtn.textContent = 'Copied!';
         setTimeout(() => {
-          copyBtn.innerHTML = originalContent;
-        }, 2000);
+          copyBtn.textContent = originalText;
+        }, 1500);
       }
     }).catch(err => {
       console.error('Failed to copy:', err);
@@ -864,12 +566,14 @@ console.log(greeting);`,
   toggleFullscreen() {
     if (this.classList.contains('fullscreen')) {
       this.classList.remove('fullscreen');
-      this.updateContainerSize();
+      this.updateDimensions();
     } else {
       this.classList.add('fullscreen');
-      this.calculateDimensions();
-      this.totalHeight = window.innerHeight;
-      this.updateContainerSize();
+      setTimeout(() => {
+        if (this.editor) {
+          this.editor.layout();
+        }
+      }, 100);
     }
   }
 
