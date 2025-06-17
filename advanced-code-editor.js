@@ -2,590 +2,839 @@
 // Custom element tag: <advanced-code-editor></advanced-code-editor>
 
 class AdvancedCodeEditor extends HTMLElement {
-    constructor() {
-        super();
-        this.attachShadow({ mode: 'open' });
-        this.editor = null;
-        this.monacoLoaded = false;
-        this.initialized = false;
-        this.loadingAttempts = 0;
-        this.maxAttempts = 3;
-    }
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    this.editor = null;
+    this.currentLanguage = 'javascript';
+    this.currentTheme = 'vs-dark';
+    this.currentValue = '';
+    this.monacoLoaded = false;
+    this.resizeObserver = null;
+  }
 
-    static get observedAttributes() {
-        return ['language', 'theme', 'value', 'readonly', 'height'];
-    }
+  static get observedAttributes() {
+    return ['language', 'theme', 'value', 'read-only', 'height', 'width'];
+  }
 
-    connectedCallback() {
-        this.render();
-        this.loadEditor();
-    }
+  connectedCallback() {
+    this.render();
+    this.loadMonacoEditor().then(() => {
+      this.initializeEditor();
+      this.setupEventListeners();
+      this.setupResizeObserver();
+    }).catch(err => {
+      console.error('Failed to load Monaco Editor:', err);
+      this.showError();
+    });
+  }
 
-    disconnectedCallback() {
-        if (this.editor) {
-            this.editor.dispose();
+  disconnectedCallback() {
+    if (this.editor) {
+      this.editor.dispose();
+    }
+    if (this.resizeObserver) {
+      this.resizeObserver.disconnect();
+    }
+  }
+
+  attributeChangedCallback(name, oldValue, newValue) {
+    if (!this.editor || !this.monacoLoaded || oldValue === newValue) return;
+
+    switch (name) {
+      case 'language':
+        window.monaco.editor.setModelLanguage(this.editor.getModel(), newValue);
+        this.currentLanguage = newValue;
+        this.updateLanguageSelect();
+        break;
+      case 'theme':
+        window.monaco.editor.setTheme(newValue);
+        this.currentTheme = newValue;
+        this.updateThemeSelect();
+        break;
+      case 'value':
+        if (this.editor.getValue() !== newValue) {
+          this.editor.setValue(newValue || '');
         }
+        this.currentValue = newValue;
+        break;
+      case 'read-only':
+        this.editor.updateOptions({ readOnly: newValue === 'true' });
+        break;
+      case 'height':
+      case 'width':
+        this.updateDimensions();
+        break;
     }
+  }
 
-    attributeChangedCallback(name, oldValue, newValue) {
-        if (!this.editor || oldValue === newValue) return;
-
-        switch (name) {
-            case 'language':
-                this.setLanguage(newValue);
-                break;
-            case 'theme':
-                this.setTheme(newValue);
-                break;
-            case 'value':
-                this.setValue(newValue);
-                break;
-            case 'readonly':
-                this.setReadonly(newValue === 'true');
-                break;
-            case 'height':
-                this.updateHeight(newValue);
-                break;
+  render() {
+    const height = this.getAttribute('height') || '500px';
+    const width = this.getAttribute('width') || '100%';
+    
+    this.shadowRoot.innerHTML = `
+      <style>
+        :host {
+          display: block;
+          width: ${width};
+          height: ${height};
+          min-height: 300px;
+          font-family: 'Monaco', 'Menlo', 'Consolas', 'Liberation Mono', 'Courier New', monospace;
+          border: 1px solid #e1e4e8;
+          border-radius: 6px;
+          overflow: hidden;
+          background: #ffffff;
         }
-    }
 
-    render() {
-        const height = this.getAttribute('height') || '400px';
-        
-        this.shadowRoot.innerHTML = `
-            <style>
-                :host {
-                    display: block;
-                    width: 100%;
-                    height: ${height};
-                    border: 1px solid #e1e4e8;
-                    border-radius: 6px;
-                    overflow: hidden;
-                    font-family: 'Monaco', 'Menlo', 'Consolas', 'Liberation Mono', 'Courier New', monospace;
-                    background: #f6f8fa;
-                }
+        .editor-wrapper {
+          display: flex;
+          flex-direction: column;
+          width: 100%;
+          height: 100%;
+        }
 
-                .editor-container {
-                    width: 100%;
-                    height: 100%;
-                    position: relative;
-                    display: flex;
-                    flex-direction: column;
-                }
+        .toolbar {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 8px 12px;
+          background: linear-gradient(to bottom, #fafbfc, #eff3f6);
+          border-bottom: 1px solid #e1e4e8;
+          font-size: 12px;
+          flex-shrink: 0;
+          min-height: 40px;
+          box-sizing: border-box;
+        }
 
-                .loading {
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    justify-content: center;
-                    height: 100%;
-                    background: #1e1e1e;
-                    color: #fff;
-                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                    gap: 10px;
-                }
+        .toolbar-group {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
 
-                .loading-spinner {
-                    width: 24px;
-                    height: 24px;
-                    border: 2px solid #ffffff33;
-                    border-top: 2px solid #ffffff;
-                    border-radius: 50%;
-                    animation: spin 1s linear infinite;
-                }
+        .toolbar-separator {
+          width: 1px;
+          height: 20px;
+          background: #e1e4e8;
+        }
 
-                @keyframes spin {
-                    0% { transform: rotate(0deg); }
-                    100% { transform: rotate(360deg); }
-                }
+        select {
+          padding: 4px 8px;
+          font-size: 11px;
+          border: 1px solid #d1d5da;
+          border-radius: 3px;
+          background: #ffffff;
+          color: #24292e;
+          outline: none;
+          cursor: pointer;
+          min-width: 80px;
+        }
 
-                .toolbar {
-                    background: #24292e;
-                    border-bottom: 1px solid #444d56;
-                    padding: 8px 12px;
-                    display: flex;
-                    align-items: center;
-                    gap: 12px;
-                    font-size: 12px;
-                    flex-shrink: 0;
-                }
+        select:focus {
+          border-color: #0366d6;
+          box-shadow: 0 0 0 2px rgba(3, 102, 214, 0.3);
+        }
 
-                .toolbar select {
-                    background: #444d56;
-                    color: #fff;
-                    border: 1px solid #6a737d;
-                    border-radius: 3px;
-                    padding: 4px 8px;
-                    font-size: 11px;
-                    outline: none;
-                }
+        button {
+          padding: 4px 12px;
+          font-size: 11px;
+          border: 1px solid transparent;
+          border-radius: 3px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          outline: none;
+          font-weight: 500;
+        }
 
-                .toolbar select:focus {
-                    border-color: #0366d6;
-                }
+        .btn-primary {
+          background: #0366d6;
+          color: #ffffff;
+          border-color: #0366d6;
+        }
 
-                .toolbar button {
-                    background: #0366d6;
-                    color: #fff;
-                    border: none;
-                    border-radius: 3px;
-                    padding: 4px 12px;
-                    font-size: 11px;
-                    cursor: pointer;
-                    transition: background 0.2s;
-                    outline: none;
-                }
+        .btn-primary:hover {
+          background: #0256cc;
+          border-color: #0256cc;
+        }
 
-                .toolbar button:hover {
-                    background: #0256cc;
-                }
+        .btn-secondary {
+          background: #f6f8fa;
+          color: #24292e;
+          border-color: #d1d5da;
+        }
 
-                .toolbar button:active {
-                    background: #024ea4;
-                }
+        .btn-secondary:hover {
+          background: #e1e4e8;
+          border-color: #c6cbd1;
+        }
 
-                .editor-area {
-                    flex: 1;
-                    position: relative;
-                    background: #fff;
-                }
+        .btn-success {
+          background: #28a745;
+          color: #ffffff;
+          border-color: #28a745;
+        }
 
-                .simple-editor {
-                    width: 100%;
-                    height: 100%;
-                    border: none;
-                    outline: none;
-                    resize: none;
-                    font-family: 'Monaco', 'Menlo', 'Consolas', 'Liberation Mono', 'Courier New', monospace;
-                    font-size: 14px;
-                    line-height: 1.5;
-                    padding: 12px;
-                    background: #fff;
-                    color: #24292e;
-                    tab-size: 4;
-                }
+        .btn-success:hover {
+          background: #218838;
+          border-color: #1e7e34;
+        }
 
-                .simple-editor.dark {
-                    background: #1e1e1e;
-                    color: #d4d4d4;
-                }
+        .btn-danger {
+          background: #d73a49;
+          color: #ffffff;
+          border-color: #d73a49;
+        }
 
-                .error-message {
-                    padding: 20px;
-                    text-align: center;
-                    color: #d73a49;
-                    background: #ffeaea;
-                    border: 1px solid #f97583;
-                    margin: 10px;
-                    border-radius: 4px;
-                    font-size: 14px;
-                }
+        .btn-danger:hover {
+          background: #cb2431;
+          border-color: #b52d3a;
+        }
 
-                .hidden {
-                    display: none !important;
-                }
+        .toolbar-right {
+          margin-left: auto;
+        }
 
-                .retry-button {
-                    background: #28a745;
-                    color: white;
-                    border: none;
-                    padding: 8px 16px;
-                    border-radius: 4px;
-                    cursor: pointer;
-                    margin-top: 10px;
-                }
+        #editor-container {
+          flex: 1;
+          width: 100%;
+          min-height: 250px;
+          position: relative;
+          background: #ffffff;
+        }
 
-                .retry-button:hover {
-                    background: #218838;
-                }
-            </style>
+        .loading {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          height: 100%;
+          background: #1e1e1e;
+          color: #ffffff;
+          gap: 12px;
+        }
+
+        .loading-spinner {
+          width: 24px;
+          height: 24px;
+          border: 2px solid #ffffff33;
+          border-top: 2px solid #ffffff;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+
+        .error {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          height: 100%;
+          background: #ffeaea;
+          color: #d73a49;
+          padding: 20px;
+          text-align: center;
+          gap: 12px;
+        }
+
+        .error button {
+          background: #d73a49;
+          color: #ffffff;
+          border: none;
+          padding: 8px 16px;
+          border-radius: 4px;
+          cursor: pointer;
+        }
+
+        .status-bar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 4px 12px;
+          background: #f6f8fa;
+          border-top: 1px solid #e1e4e8;
+          font-size: 11px;
+          color: #586069;
+          min-height: 24px;
+          flex-shrink: 0;
+        }
+
+        .status-left {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .status-right {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .hidden {
+          display: none !important;
+        }
+
+        /* Dark theme adjustments */
+        :host([theme="vs-dark"]) .toolbar {
+          background: linear-gradient(to bottom, #2d2d30, #252526);
+          border-bottom-color: #3e3e42;
+        }
+
+        :host([theme="vs-dark"]) select {
+          background: #3c3c3c;
+          color: #cccccc;
+          border-color: #5a5a5a;
+        }
+
+        :host([theme="vs-dark"]) .status-bar {
+          background: #252526;
+          border-top-color: #3e3e42;
+          color: #cccccc;
+        }
+
+        :host([theme="vs-dark"]) {
+          background: #1e1e1e;
+          border-color: #3e3e42;
+        }
+      </style>
+      
+      <div class="editor-wrapper">
+        <div class="toolbar">
+          <div class="toolbar-group">
+            <select id="language-select" title="Select Language">
+              <option value="javascript">JavaScript</option>
+              <option value="typescript">TypeScript</option>
+              <option value="python">Python</option>
+              <option value="java">Java</option>
+              <option value="csharp">C#</option>
+              <option value="cpp">C++</option>
+              <option value="c">C</option>
+              <option value="html">HTML</option>
+              <option value="css">CSS</option>
+              <option value="scss">SCSS</option>
+              <option value="json">JSON</option>
+              <option value="xml">XML</option>
+              <option value="yaml">YAML</option>
+              <option value="markdown">Markdown</option>
+              <option value="sql">SQL</option>
+              <option value="php">PHP</option>
+              <option value="go">Go</option>
+              <option value="rust">Rust</option>
+              <option value="kotlin">Kotlin</option>
+              <option value="swift">Swift</option>
+              <option value="ruby">Ruby</option>
+              <option value="shell">Shell</option>
+              <option value="dockerfile">Dockerfile</option>
+              <option value="plaintext">Plain Text</option>
+            </select>
             
-            <div class="editor-container">
-                <div class="toolbar">
-                    <select id="languageSelect">
-                        <option value="javascript">JavaScript</option>
-                        <option value="html">HTML</option>
-                        <option value="css">CSS</option>
-                        <option value="python">Python</option>
-                        <option value="java">Java</option>
-                        <option value="json">JSON</option>
-                        <option value="markdown">Markdown</option>
-                        <option value="sql">SQL</option>
-                        <option value="xml">XML</option>
-                        <option value="plaintext">Plain Text</option>
-                    </select>
-                    
-                    <select id="themeSelect">
-                        <option value="light">Light</option>
-                        <option value="dark">Dark</option>
-                    </select>
-                    
-                    <button id="formatBtn">Format Code</button>
-                    <button id="copyBtn">Copy</button>
-                    <button id="clearBtn">Clear</button>
-                </div>
-                
-                <div class="editor-area">
-                    <div class="loading" id="loading">
-                        <div class="loading-spinner"></div>
-                        <div>Loading Code Editor...</div>
-                    </div>
-                    
-                    <div id="error" class="error-message hidden">
-                        <div>Failed to load advanced editor</div>
-                        <button class="retry-button" id="retryBtn">Retry</button>
-                        <div style="margin-top: 10px; font-size: 12px;">Fallback mode available below</div>
-                    </div>
-                    
-                    <div id="monacoEditor" class="hidden"></div>
-                    <textarea id="fallbackEditor" class="simple-editor hidden" placeholder="Enter your code here..."></textarea>
-                </div>
-            </div>
-        `;
+            <select id="theme-select" title="Select Theme">
+              <option value="vs">Light</option>
+              <option value="vs-dark">Dark</option>
+              <option value="hc-black">High Contrast Dark</option>
+              <option value="hc-light">High Contrast Light</option>
+            </select>
+          </div>
 
-        this.setupEventListeners();
-    }
+          <div class="toolbar-separator"></div>
 
-    setupEventListeners() {
-        const languageSelect = this.shadowRoot.getElementById('languageSelect');
-        const themeSelect = this.shadowRoot.getElementById('themeSelect');
-        const formatBtn = this.shadowRoot.getElementById('formatBtn');
-        const copyBtn = this.shadowRoot.getElementById('copyBtn');
-        const clearBtn = this.shadowRoot.getElementById('clearBtn');
-        const retryBtn = this.shadowRoot.getElementById('retryBtn');
-        const fallbackEditor = this.shadowRoot.getElementById('fallbackEditor');
+          <div class="toolbar-group">
+            <button id="format-btn" class="btn-primary" title="Format Code (Shift+Alt+F)">
+              Format
+            </button>
+            <button id="copy-btn" class="btn-success" title="Copy to Clipboard">
+              Copy
+            </button>
+            <button id="clear-btn" class="btn-danger" title="Clear All">
+              Clear
+            </button>
+          </div>
 
-        languageSelect.addEventListener('change', (e) => {
-            this.setLanguage(e.target.value);
-        });
+          <div class="toolbar-separator"></div>
 
-        themeSelect.addEventListener('change', (e) => {
-            this.setTheme(e.target.value);
-        });
+          <div class="toolbar-group">
+            <button id="undo-btn" class="btn-secondary" title="Undo (Ctrl+Z)">
+              ↶ Undo
+            </button>
+            <button id="redo-btn" class="btn-secondary" title="Redo (Ctrl+Y)">
+              ↷ Redo
+            </button>
+          </div>
 
-        formatBtn.addEventListener('click', () => {
-            this.formatCode();
-        });
-
-        copyBtn.addEventListener('click', () => {
-            this.copyToClipboard();
-        });
-
-        clearBtn.addEventListener('click', () => {
-            this.setValue('');
-        });
-
-        retryBtn.addEventListener('click', () => {
-            this.loadEditor();
-        });
-
-        // Fallback editor events
-        fallbackEditor.addEventListener('input', () => {
-            this.dispatchChangeEvent();
-        });
-
-        fallbackEditor.addEventListener('focus', () => {
-            this.dispatchEvent(new CustomEvent('focus'));
-        });
-
-        fallbackEditor.addEventListener('blur', () => {
-            this.dispatchEvent(new CustomEvent('blur'));
-        });
-    }
-
-    async loadEditor() {
-        this.loadingAttempts++;
-        this.showLoading();
-
-        try {
-            // Try to load Monaco Editor
-            await this.loadMonacoEditor();
-        } catch (error) {
-            console.warn('Monaco Editor failed to load, using fallback:', error);
-            this.useFallbackEditor();
-        }
-    }
-
-    async loadMonacoEditor() {
-        return new Promise((resolve, reject) => {
-            // Check if Monaco is already loaded
-            if (window.monaco) {
-                this.initializeMonacoEditor();
-                resolve();
-                return;
-            }
-
-            // Create a timeout for loading
-            const timeout = setTimeout(() => {
-                reject(new Error('Monaco loading timeout'));
-            }, 10000);
-
-            try {
-                // Load Monaco Editor using a more reliable method
-                const loaderScript = document.createElement('script');
-                loaderScript.src = 'https://unpkg.com/monaco-editor@0.45.0/min/vs/loader.js';
-                
-                loaderScript.onload = () => {
-                    // Configure Monaco loader
-                    window.require.config({ 
-                        paths: { 
-                            'vs': 'https://unpkg.com/monaco-editor@0.45.0/min/vs' 
-                        }
-                    });
-
-                    window.require(['vs/editor/editor.main'], () => {
-                        clearTimeout(timeout);
-                        this.monacoLoaded = true;
-                        this.initializeMonacoEditor();
-                        resolve();
-                    }, (error) => {
-                        clearTimeout(timeout);
-                        reject(error);
-                    });
-                };
-
-                loaderScript.onerror = () => {
-                    clearTimeout(timeout);
-                    reject(new Error('Failed to load Monaco loader script'));
-                };
-
-                document.head.appendChild(loaderScript);
-
-            } catch (error) {
-                clearTimeout(timeout);
-                reject(error);
-            }
-        });
-    }
-
-    initializeMonacoEditor() {
-        const editorContainer = this.shadowRoot.getElementById('monacoEditor');
+          <div class="toolbar-right">
+            <button id="fullscreen-btn" class="btn-secondary" title="Toggle Fullscreen">
+              ⛶ Fullscreen
+            </button>
+          </div>
+        </div>
         
-        const language = this.getAttribute('language') || 'javascript';
-        const theme = this.getAttribute('theme') === 'dark' ? 'vs-dark' : 'vs';
-        const value = this.getAttribute('value') || '// Welcome to the code editor!\nconsole.log("Hello, World!");';
-        const readonly = this.getAttribute('readonly') === 'true';
+        <div id="editor-container">
+          <div id="loading" class="loading">
+            <div class="loading-spinner"></div>
+            <div>Loading Monaco Editor...</div>
+          </div>
+          <div id="error" class="error hidden">
+            <div>❌ Failed to load Monaco Editor</div>
+            <div>Please check your internet connection and try again.</div>
+            <button id="retry-btn">Retry</button>
+          </div>
+        </div>
 
-        this.editor = monaco.editor.create(editorContainer, {
-            value: value,
-            language: language,
-            theme: theme,
-            readOnly: readonly,
-            automaticLayout: true,
-            minimap: { enabled: true },
-            fontSize: 14,
-            fontFamily: "'Monaco', 'Menlo', 'Consolas', 'Liberation Mono', 'Courier New', monospace",
-            scrollBeyondLastLine: false,
-            wordWrap: 'on',
-            lineNumbers: 'on',
-            renderWhitespace: 'selection',
-            contextmenu: true,
-            mouseWheelZoom: true,
-            smoothScrolling: true,
-            cursorBlinking: 'smooth',
-            tabSize: 4,
-            insertSpaces: true,
-            detectIndentation: true,
-            trimAutoWhitespace: true,
-            formatOnPaste: true,
-            formatOnType: true
+        <div class="status-bar">
+          <div class="status-left">
+            <span id="language-info">JavaScript</span>
+            <span id="encoding-info">UTF-8</span>
+          </div>
+          <div class="status-right">
+            <span id="cursor-position">Ln 1, Col 1</span>
+            <span id="selection-info"></span>
+            <span id="line-count">1 lines</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  loadMonacoEditor() {
+    return new Promise((resolve, reject) => {
+      if (window.monaco) {
+        this.monacoLoaded = true;
+        resolve();
+        return;
+      }
+
+      // Set a timeout for loading
+      const timeout = setTimeout(() => {
+        reject(new Error('Monaco Editor loading timeout'));
+      }, 15000);
+
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js';
+      script.async = true;
+
+      script.onload = () => {
+        window.require.config({
+          paths: {
+            vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs'
+          }
         });
 
-        // Set up event listeners
-        this.editor.onDidChangeModelContent(() => {
-            this.dispatchChangeEvent();
+        window.require(['vs/editor/editor.main'], () => {
+          clearTimeout(timeout);
+          this.monacoLoaded = true;
+          resolve();
+        }, (err) => {
+          clearTimeout(timeout);
+          console.error('Failed to load Monaco Editor:', err);
+          reject(err);
         });
+      };
 
-        this.editor.onDidFocusEditorText(() => {
-            this.dispatchEvent(new CustomEvent('focus'));
-        });
+      script.onerror = (err) => {
+        clearTimeout(timeout);
+        console.error('Failed to load Monaco loader:', err);
+        reject(err);
+      };
 
-        this.editor.onDidBlurEditorText(() => {
-            this.dispatchEvent(new CustomEvent('blur'));
-        });
+      document.head.appendChild(script);
+    });
+  }
 
-        this.hideLoading();
-        this.showMonacoEditor();
-        this.updateToolbar();
-        this.initialized = true;
-    }
+  initializeEditor() {
+    if (!this.monacoLoaded || !window.monaco) return;
 
-    useFallbackEditor() {
-        const fallbackEditor = this.shadowRoot.getElementById('fallbackEditor');
-        const value = this.getAttribute('value') || '// Welcome to the code editor!\nconsole.log("Hello, World!");';
-        const readonly = this.getAttribute('readonly') === 'true';
-        const theme = this.getAttribute('theme') || 'light';
+    const container = this.shadowRoot.querySelector('#editor-container');
+    const loading = this.shadowRoot.querySelector('#loading');
 
-        fallbackEditor.value = value;
-        fallbackEditor.readOnly = readonly;
-        
-        if (theme === 'dark') {
-            fallbackEditor.classList.add('dark');
-        }
+    try {
+      this.editor = window.monaco.editor.create(container, {
+        value: this.getAttribute('value') || '// Welcome to Advanced Code Editor!\n// Start coding here...\n\nfunction helloWorld() {\n    console.log("Hello, World!");\n    return "Monaco Editor is ready!";\n}\n\nhelloWorld();',
+        language: this.getAttribute('language') || this.currentLanguage,
+        theme: this.getAttribute('theme') || this.currentTheme,
+        automaticLayout: true,
+        minimap: { enabled: true },
+        scrollBeyondLastLine: false,
+        fontSize: 14,
+        fontFamily: "'Monaco', 'Menlo', 'Consolas', 'Liberation Mono', 'Courier New', monospace",
+        lineNumbers: 'on',
+        wordWrap: 'on',
+        formatOnPaste: true,
+        formatOnType: true,
+        readOnly: this.getAttribute('read-only') === 'true',
+        tabSize: 4,
+        insertSpaces: true,
+        autoClosingBrackets: 'always',
+        autoClosingQuotes: 'always',
+        autoIndent: 'full',
+        contextmenu: true,
+        mouseWheelZoom: true,
+        smoothScrolling: true,
+        cursorBlinking: 'smooth',
+        renderWhitespace: 'selection',
+        showUnused: true,
+        folding: true,
+        foldingHighlight: true,
+        unfoldOnClickAfterEndOfLine: true,
+        colorDecorators: true,
+        codeLens: true,
+        lightbulb: {
+          enabled: true
+        },
+        suggest: {
+          showWords: true,
+          showSnippets: true,
+          showFunctions: true,
+          showVariables: true,
+          showModules: true,
+          showClasses: true,
+          showKeywords: true
+        },
+        quickSuggestions: {
+          other: true,
+          comments: true,
+          strings: true
+        },
+        parameterHints: {
+          enabled: true
+        },
+        acceptSuggestionOnCommitCharacter: true,
+        acceptSuggestionOnEnter: 'on',
+        accessibilitySupport: 'auto'
+      });
 
-        this.hideLoading();
-        this.showFallbackEditor();
-        this.updateToolbar();
-        this.initialized = true;
+      this.currentValue = this.editor.getValue();
+      this.currentLanguage = this.getAttribute('language') || this.currentLanguage;
+      this.currentTheme = this.getAttribute('theme') || this.currentTheme;
 
-        if (this.loadingAttempts < this.maxAttempts) {
-            this.showError();
-        }
-    }
-
-    // UI Control Methods
-    showLoading() {
-        this.shadowRoot.getElementById('loading').classList.remove('hidden');
-        this.shadowRoot.getElementById('error').classList.add('hidden');
-        this.shadowRoot.getElementById('monacoEditor').classList.add('hidden');
-        this.shadowRoot.getElementById('fallbackEditor').classList.add('hidden');
-    }
-
-    hideLoading() {
-        this.shadowRoot.getElementById('loading').classList.add('hidden');
-    }
-
-    showError() {
-        this.shadowRoot.getElementById('error').classList.remove('hidden');
-    }
-
-    showMonacoEditor() {
-        this.shadowRoot.getElementById('monacoEditor').classList.remove('hidden');
-        this.shadowRoot.getElementById('fallbackEditor').classList.add('hidden');
-    }
-
-    showFallbackEditor() {
-        this.shadowRoot.getElementById('fallbackEditor').classList.remove('hidden');
-        this.shadowRoot.getElementById('monacoEditor').classList.add('hidden');
-    }
-
-    updateToolbar() {
-        const language = this.getAttribute('language') || 'javascript';
-        const theme = this.getAttribute('theme') || 'light';
-        
-        this.shadowRoot.getElementById('languageSelect').value = language;
-        this.shadowRoot.getElementById('themeSelect').value = theme;
-    }
-
-    // Public API Methods
-    getValue() {
-        if (this.editor && this.monacoLoaded) {
-            return this.editor.getValue();
-        } else {
-            const fallbackEditor = this.shadowRoot.getElementById('fallbackEditor');
-            return fallbackEditor.value;
-        }
-    }
-
-    setValue(value) {
-        if (this.editor && this.monacoLoaded) {
-            this.editor.setValue(value || '');
-        } else {
-            const fallbackEditor = this.shadowRoot.getElementById('fallbackEditor');
-            fallbackEditor.value = value || '';
-        }
-        this.setAttribute('value', value || '');
-    }
-
-    setLanguage(language) {
-        if (this.editor && this.monacoLoaded) {
-            monaco.editor.setModelLanguage(this.editor.getModel(), language);
-        }
-        this.setAttribute('language', language);
-        this.shadowRoot.getElementById('languageSelect').value = language;
-    }
-
-    setTheme(theme) {
-        if (this.editor && this.monacoLoaded) {
-            const monacoTheme = theme === 'dark' ? 'vs-dark' : 'vs';
-            monaco.editor.setTheme(monacoTheme);
-        } else {
-            const fallbackEditor = this.shadowRoot.getElementById('fallbackEditor');
-            if (theme === 'dark') {
-                fallbackEditor.classList.add('dark');
-            } else {
-                fallbackEditor.classList.remove('dark');
-            }
-        }
-        this.setAttribute('theme', theme);
-        this.shadowRoot.getElementById('themeSelect').value = theme;
-    }
-
-    setReadonly(readonly) {
-        if (this.editor && this.monacoLoaded) {
-            this.editor.updateOptions({ readOnly: readonly });
-        } else {
-            const fallbackEditor = this.shadowRoot.getElementById('fallbackEditor');
-            fallbackEditor.readOnly = readonly;
-        }
-        this.setAttribute('readonly', readonly.toString());
-    }
-
-    updateHeight(height) {
-        this.style.height = height;
-        if (this.editor && this.monacoLoaded) {
-            setTimeout(() => this.editor.layout(), 100);
-        }
-    }
-
-    formatCode() {
-        if (this.editor && this.monacoLoaded) {
-            this.editor.getAction('editor.action.formatDocument').run();
-        } else {
-            // Simple formatting for fallback editor
-            const value = this.getValue();
-            try {
-                const formatted = this.simpleFormat(value);
-                this.setValue(formatted);
-            } catch (e) {
-                console.warn('Formatting failed:', e);
-            }
-        }
-    }
-
-    simpleFormat(code) {
-        // Basic JavaScript formatting
-        return code
-            .replace(/\{\s*\n/g, '{\n')
-            .replace(/\n\s*\}/g, '\n}')
-            .replace(/;\s*\n/g, ';\n')
-            .split('\n')
-            .map(line => line.trim())
-            .join('\n');
-    }
-
-    copyToClipboard() {
-        const value = this.getValue();
-        navigator.clipboard.writeText(value).then(() => {
-            // Visual feedback
-            const copyBtn = this.shadowRoot.getElementById('copyBtn');
-            const originalText = copyBtn.textContent;
-            copyBtn.textContent = 'Copied!';
-            setTimeout(() => {
-                copyBtn.textContent = originalText;
-            }, 1000);
-        }).catch(err => {
-            console.error('Failed to copy:', err);
-        });
-    }
-
-    focus() {
-        if (this.editor && this.monacoLoaded) {
-            this.editor.focus();
-        } else {
-            const fallbackEditor = this.shadowRoot.getElementById('fallbackEditor');
-            fallbackEditor.focus();
-        }
-    }
-
-    dispatchChangeEvent() {
+      // Set up event listeners for editor
+      this.editor.onDidChangeModelContent(() => {
+        const newValue = this.editor.getValue();
+        this.currentValue = newValue;
+        this.updateStatusBar();
         this.dispatchEvent(new CustomEvent('change', {
-            detail: {
-                value: this.getValue(),
-                language: this.getAttribute('language') || 'javascript'
-            }
+          detail: { value: newValue, language: this.currentLanguage },
+          bubbles: true,
+          composed: true
         }));
+      });
+
+      this.editor.onDidChangeCursorPosition(() => {
+        this.updateStatusBar();
+      });
+
+      this.editor.onDidChangeCursorSelection(() => {
+        this.updateStatusBar();
+      });
+
+      this.editor.onDidFocusEditorText(() => {
+        this.dispatchEvent(new CustomEvent('focus', {
+          bubbles: true,
+          composed: true
+        }));
+      });
+
+      this.editor.onDidBlurEditorText(() => {
+        this.dispatchEvent(new CustomEvent('blur', {
+          bubbles: true,
+          composed: true
+        }));
+      });
+
+      // Hide loading and show editor
+      loading.classList.add('hidden');
+      
+      // Force layout and update UI
+      setTimeout(() => {
+        this.editor.layout();
+        this.updateToolbarSelects();
+        this.updateStatusBar();
+      }, 100);
+
+    } catch (error) {
+      console.error('Failed to initialize Monaco Editor:', error);
+      this.showError();
     }
+  }
+
+  setupEventListeners() {
+    const languageSelect = this.shadowRoot.querySelector('#language-select');
+    const themeSelect = this.shadowRoot.querySelector('#theme-select');
+    const formatBtn = this.shadowRoot.querySelector('#format-btn');
+    const copyBtn = this.shadowRoot.querySelector('#copy-btn');
+    const clearBtn = this.shadowRoot.querySelector('#clear-btn');
+    const undoBtn = this.shadowRoot.querySelector('#undo-btn');
+    const redoBtn = this.shadowRoot.querySelector('#redo-btn');
+    const fullscreenBtn = this.shadowRoot.querySelector('#fullscreen-btn');
+    const retryBtn = this.shadowRoot.querySelector('#retry-btn');
+
+    languageSelect?.addEventListener('change', (e) => {
+      this.setAttribute('language', e.target.value);
+    });
+
+    themeSelect?.addEventListener('change', (e) => {
+      this.setAttribute('theme', e.target.value);
+    });
+
+    formatBtn?.addEventListener('click', async () => {
+      if (this.monacoLoaded && this.editor) {
+        await this.editor.getAction('editor.action.formatDocument').run();
+      }
+    });
+
+    copyBtn?.addEventListener('click', () => {
+      this.copyToClipboard();
+    });
+
+    clearBtn?.addEventListener('click', () => {
+      if (confirm('Are you sure you want to clear all code?')) {
+        this.setValue('');
+      }
+    });
+
+    undoBtn?.addEventListener('click', () => {
+      if (this.editor) {
+        this.editor.trigger('keyboard', 'undo', null);
+      }
+    });
+
+    redoBtn?.addEventListener('click', () => {
+      if (this.editor) {
+        this.editor.trigger('keyboard', 'redo', null);
+      }
+    });
+
+    fullscreenBtn?.addEventListener('click', () => {
+      this.toggleFullscreen();
+    });
+
+    retryBtn?.addEventListener('click', () => {
+      this.hideError();
+      this.showLoading();
+      this.loadMonacoEditor().then(() => {
+        this.initializeEditor();
+      }).catch(() => {
+        this.showError();
+      });
+    });
+  }
+
+  setupResizeObserver() {
+    if (typeof ResizeObserver !== 'undefined') {
+      this.resizeObserver = new ResizeObserver(() => {
+        if (this.editor) {
+          this.editor.layout();
+        }
+      });
+      this.resizeObserver.observe(this);
+    }
+  }
+
+  updateDimensions() {
+    const height = this.getAttribute('height') || '500px';
+    const width = this.getAttribute('width') || '100%';
+    
+    this.style.height = height;
+    this.style.width = width;
+    
+    if (this.editor) {
+      setTimeout(() => this.editor.layout(), 100);
+    }
+  }
+
+  updateToolbarSelects() {
+    const languageSelect = this.shadowRoot.querySelector('#language-select');
+    const themeSelect = this.shadowRoot.querySelector('#theme-select');
+    
+    if (languageSelect) languageSelect.value = this.currentLanguage;
+    if (themeSelect) themeSelect.value = this.currentTheme;
+  }
+
+  updateLanguageSelect() {
+    const languageSelect = this.shadowRoot.querySelector('#language-select');
+    if (languageSelect) languageSelect.value = this.currentLanguage;
+    this.updateStatusBar();
+  }
+
+  updateThemeSelect() {
+    const themeSelect = this.shadowRoot.querySelector('#theme-select');
+    if (themeSelect) themeSelect.value = this.currentTheme;
+    this.setAttribute('theme', this.currentTheme);
+  }
+
+  updateStatusBar() {
+    if (!this.editor) return;
+
+    const languageInfo = this.shadowRoot.querySelector('#language-info');
+    const cursorPosition = this.shadowRoot.querySelector('#cursor-position');
+    const selectionInfo = this.shadowRoot.querySelector('#selection-info');
+    const lineCount = this.shadowRoot.querySelector('#line-count');
+
+    const position = this.editor.getPosition();
+    const selection = this.editor.getSelection();
+    const model = this.editor.getModel();
+
+    if (languageInfo) {
+      languageInfo.textContent = this.currentLanguage.toUpperCase();
+    }
+
+    if (cursorPosition && position) {
+      cursorPosition.textContent = `Ln ${position.lineNumber}, Col ${position.column}`;
+    }
+
+    if (selectionInfo && selection) {
+      const selectedText = model.getValueInRange(selection);
+      if (selectedText) {
+        const lines = selectedText.split('\n').length;
+        const chars = selectedText.length;
+        selectionInfo.textContent = `(${chars} chars, ${lines} lines selected)`;
+      } else {
+        selectionInfo.textContent = '';
+      }
+    }
+
+    if (lineCount && model) {
+      const lines = model.getLineCount();
+      lineCount.textContent = `${lines} lines`;
+    }
+  }
+
+  showLoading() {
+    const loading = this.shadowRoot.querySelector('#loading');
+    const error = this.shadowRoot.querySelector('#error');
+    
+    if (loading) loading.classList.remove('hidden');
+    if (error) error.classList.add('hidden');
+  }
+
+  showError() {
+    const loading = this.shadowRoot.querySelector('#loading');
+    const error = this.shadowRoot.querySelector('#error');
+    
+    if (loading) loading.classList.add('hidden');
+    if (error) error.classList.remove('hidden');
+  }
+
+  hideError() {
+    const error = this.shadowRoot.querySelector('#error');
+    if (error) error.classList.add('hidden');
+  }
+
+  copyToClipboard() {
+    const value = this.getValue();
+    navigator.clipboard.writeText(value).then(() => {
+      const copyBtn = this.shadowRoot.querySelector('#copy-btn');
+      if (copyBtn) {
+        const originalText = copyBtn.textContent;
+        copyBtn.textContent = 'Copied!';
+        setTimeout(() => {
+          copyBtn.textContent = originalText;
+        }, 1500);
+      }
+    }).catch(err => {
+      console.error('Failed to copy:', err);
+    });
+  }
+
+  toggleFullscreen() {
+    if (this.classList.contains('fullscreen-mode')) {
+      this.classList.remove('fullscreen-mode');
+      this.style.position = '';
+      this.style.top = '';
+      this.style.left = '';
+      this.style.width = this.getAttribute('width') || '100%';
+      this.style.height = this.getAttribute('height') || '500px';
+      this.style.zIndex = '';
+      this.style.background = '';
+    } else {
+      this.classList.add('fullscreen-mode');
+      this.style.position = 'fixed';
+      this.style.top = '0';
+      this.style.left = '0';
+      this.style.width = '100vw';
+      this.style.height = '100vh';
+      this.style.zIndex = '9999';
+      this.style.background = this.currentTheme === 'vs-dark' ? '#1e1e1e' : '#ffffff';
+    }
+    
+    setTimeout(() => {
+      if (this.editor) {
+        this.editor.layout();
+      }
+    }, 100);
+  }
+
+  // Public API Methods
+  getValue() {
+    return this.editor ? this.editor.getValue() : this.currentValue;
+  }
+
+  setValue(value) {
+    if (this.editor) {
+      this.editor.setValue(value || '');
+    }
+    this.currentValue = value || '';
+    this.setAttribute('value', value || '');
+  }
+
+  getLanguage() {
+    return this.currentLanguage;
+  }
+
+  setLanguage(language) {
+    this.setAttribute('language', language);
+  }
+
+  getTheme() {
+    return this.currentTheme;
+  }
+
+  setTheme(theme) {
+    this.setAttribute('theme', theme);
+  }
+
+  focus() {
+    if (this.editor) {
+      this.editor.focus();
+    }
+  }
+
+  layout() {
+    if (this.editor) {
+      this.editor.layout();
+    }
+  }
+
+  insertText(text, position) {
+    if (this.editor) {
+      const pos = position || this.editor.getPosition();
+      this.editor.executeEdits('insertText', [{
+        range: new window.monaco.Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column),
+        text: text
+      }]);
+    }
+  }
+
+  getSelectedText() {
+    if (this.editor) {
+      const selection = this.editor.getSelection();
+      return this.editor.getModel().getValueInRange(selection);
+    }
+    return '';
+  }
+
+  replaceSelection(text) {
+    if (this.editor) {
+      const selection = this.editor.getSelection();
+      this.editor.executeEdits('replaceSelection', [{
+        range: selection,
+        text: text
+      }]);
+    }
+  }
 }
 
 // Register the custom element
@@ -593,5 +842,8 @@ customElements.define('advanced-code-editor', AdvancedCodeEditor);
 
 // Export for use in Wix
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = AdvancedCodeEditor;
+  module.exports = AdvancedCodeEditor;
 }
+
+// Make it globally available
+window.AdvancedCodeEditor = AdvancedCodeEditor;
