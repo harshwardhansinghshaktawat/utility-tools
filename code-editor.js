@@ -9,12 +9,10 @@ class CodeEditor extends HTMLElement {
     this.monacoLoaded = false;
   }
 
-  // Observed attributes for dynamic updates
   static get observedAttributes() {
-    return ['language', 'theme', 'value', 'read-only'];
+    return ['language', 'theme', 'value', 'read-only', 'height'];
   }
 
-  // Lifecycle: When element is added to DOM
   connectedCallback() {
     this.render();
     this.loadMonacoEditor().then(() => {
@@ -23,7 +21,6 @@ class CodeEditor extends HTMLElement {
     });
   }
 
-  // Lifecycle: When attributes change
   attributeChangedCallback(name, oldValue, newValue) {
     if (!this.editor || !this.monacoLoaded) return;
 
@@ -43,11 +40,18 @@ class CodeEditor extends HTMLElement {
       case 'read-only':
         this.editor.updateOptions({ readOnly: newValue === 'true' });
         break;
+      case 'height':
+        const container = this.shadowRoot.querySelector('#editor-container');
+        container.style.height = newValue || '400px';
+        if (this.editor) {
+          this.editor.layout();
+        }
+        break;
     }
   }
 
-  // Render the basic structure
   render() {
+    const height = this.getAttribute('height') || '400px';
     this.shadowRoot.innerHTML = `
       <style>
         :host {
@@ -56,10 +60,11 @@ class CodeEditor extends HTMLElement {
           height: 100%;
           min-height: 400px;
         }
-        #editor-container {
-          width: 100%;
+        .editor-wrapper {
+          display: flex;
+          flex-direction: column;
           height: 100%;
-          border: 1px solid #ccc;
+          min-height: ${height};
         }
         .toolbar {
           display: flex;
@@ -68,56 +73,60 @@ class CodeEditor extends HTMLElement {
           background: #f5f5f5;
           border-bottom: 1px solid #ccc;
         }
+        #editor-container {
+          flex: 1;
+          width: 100%;
+          height: ${height};
+          min-height: 300px;
+          border: 1px solid #ccc;
+        }
         select, button {
           padding: 5px;
           font-size: 14px;
         }
       </style>
-      <div class="toolbar">
-        <select id="language-select">
-          <option value="javascript">JavaScript</option>
-          <option value="typescript">TypeScript</option>
-          <option value="python">Python</option>
-          <option value="html">HTML</option>
-          <option value="css">CSS</option>
-          <option value="json">JSON</option>
-        </select>
-        <select id="theme-select">
-          <option value="vs">Light</option>
-          <option value="vs-dark">Dark</option>
-          <option value="hc-black">High Contrast</option>
-        </select>
-        <button id="format-btn">Format Code</button>
-        <button id="copy-btn">Copy Code</button>
+      <div class="editor-wrapper">
+        <div class="toolbar">
+          <select id="language-select">
+            <option value="javascript">JavaScript</option>
+            <option value="typescript">TypeScript</option>
+            <option value="python">Python</option>
+            <option value="html">HTML</option>
+            <option value="css">CSS</option>
+            <option value="json">JSON</option>
+          </select>
+          <select id="theme-select">
+            <option value="vs">Light</option>
+            <option value="vs-dark">Dark</option>
+            <option value="hc-black">High Contrast</option>
+          </select>
+          <button id="format-btn">Format Code</button>
+          <button id="copy-btn">Copy Code</button>
+        </div>
+        <div id="editor-container"></div>
       </div>
-      <div id="editor-container"></div>
     `;
   }
 
-  // Load Monaco Editor via AMD loader
   loadMonacoEditor() {
     return new Promise((resolve, reject) => {
-      // Check if Monaco is already loaded
       if (window.monaco) {
         this.monacoLoaded = true;
         resolve();
         return;
       }
 
-      // Create script tag for Monaco loader
       const script = document.createElement('script');
       script.src = 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js';
       script.async = true;
 
       script.onload = () => {
-        // Configure Monaco loader
         window.require.config({
           paths: {
             vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs'
           }
         });
 
-        // Load Monaco editor
         window.require(['vs/editor/editor.main'], () => {
           this.monacoLoaded = true;
           resolve();
@@ -132,12 +141,10 @@ class CodeEditor extends HTMLElement {
         reject(err);
       };
 
-      // Append script to document head
       document.head.appendChild(script);
     });
   }
 
-  // Initialize Monaco Editor
   initializeEditor() {
     if (!this.monacoLoaded || !window.monaco) return;
 
@@ -166,56 +173,51 @@ class CodeEditor extends HTMLElement {
       },
     });
 
-    // Update current values
     this.currentValue = this.editor.getValue();
     this.currentLanguage = this.getAttribute('language') || this.currentLanguage;
     this.currentTheme = this.getAttribute('theme') || this.currentTheme;
 
-    // Sync editor changes with custom element
     this.editor.onDidChangeModelContent(() => {
       const newValue = this.editor.getValue();
       this.currentValue = newValue;
       this.dispatchEvent(new CustomEvent('change', {
-        detail: { value: newValue' },
+        detail: { value: newValue },
         bubbles: true,
         composed: true
       }));
     });
+
+    // Force layout after initialization
+    this.editor.layout();
   }
 
-  // Setup toolbar interactions
   setupEventListeners() {
-    const languageSelect = this.shadowRoot.getElementById')('language-select');
+    const languageSelect = this.shadowRoot.querySelector('#language-select');
     const themeSelect = this.shadowRoot.querySelector('#theme-select');
-    const formatBtn = this.shadowRoot.getElementById('#format-btn');
+    const formatBtn = this.shadowRoot.querySelector('#format-btn');
     const copyBtn = this.shadowRoot.querySelector('#copy-btn');
 
-    // Language change
     languageSelect.addEventListener('change', (e) => {
       this.setAttribute('language', e.target.value);
     });
 
-    // Theme change
     themeSelect.addEventListener('change', (e) => {
       this.setAttribute('theme', e.target.value);
     });
 
-    // Format code
     formatBtn.addEventListener('click', async () => {
       if (this.monacoLoaded) {
         await this.editor.getAction('editor.action.formatDocument').run();
       }
     });
 
-    // Copy code
     copyBtn.addEventListener('click', () => {
-      await navigator.clipboard.writeText(this.editor.getValue());
+      navigator.clipboard.writeText(this.editor.getValue());
       copyBtn.textContent = 'Copied!';
       setTimeout(() => (copyBtn.textContent = 'Copy Code'), 1000);
     });
   }
 
-  // Public methods for external control
   getValue() {
     return this.editor ? this.editor.getValue() : this.currentValue;
   }
@@ -224,16 +226,14 @@ class CodeEditor extends HTMLElement {
     if (this.editor) {
       this.editor.setValue(value);
     }
-    this.currentValue(value) = value;
+    this.currentValue = value;
   }
 
-  // Lifecycle: Cleanup when element is removed
   disconnectedCallback() {
-    if (this.edit) {
-      this.editor.delete();
+    if (this.editor) {
+      this.editor.dispose();
     }
   }
 }
 
-// Define the custom element
 customElements.define('code-editor', CodeEditor);
