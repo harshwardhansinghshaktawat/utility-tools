@@ -1,31 +1,4 @@
 // code-editor.js
-import { EditorView, basicSetup } from 'codemirror';
-import { javascript } from '@codemirror/lang-javascript';
-import { css } from '@codemirror/lang-css';
-import { html } from '@codemirror/lang-html';
-import { python } from '@codemirror/lang-python';
-import { oneDark } from '@codemirror/theme-one-dark';
-import { EditorState } from '@codemirror/state';
-import { lineNumbers, gutter } from '@codemirror/gutter';
-import { autocompletion, completionKeymap } from '@codemirror/autocomplete';
-import { keymap } from '@codemirror/view';
-import { indentWithTab } from '@codemirror/commands';
-import { tags, HighlightStyle } from '@codemirror/highlight';
-
-// Define custom highlight style for syntax coloring
-const customHighlightStyle = HighlightStyle.define([
-  { tag: tags.keyword, color: '#c792ea', fontWeight: 'bold' },
-  { tag: tags.comment, color: '#6272a4', fontStyle: 'italic' },
-  { tag: tags.string, color: '#f1fa8c' },
-  { tag: tags.number, color: '#bd93f9' },
-  { tag: tags.variableName, color: '#50fa7b' },
-  { tag: tags.function, color: '#ffb86c' },
-  { tag: tags.className, color: '#8be9fd' },
-  { tag: tags.tagName, color: '#ff79c6' },
-  { tag: tags.attributeName, color: '#f8f8f2' },
-]);
-
-// Define the custom element class
 class CodeEditor extends HTMLElement {
   constructor() {
     super();
@@ -37,7 +10,7 @@ class CodeEditor extends HTMLElement {
     const language = this.getAttribute('language') || 'javascript';
     const initialCode = this.getAttribute('code') || '// Start coding here...';
 
-    // Create shadow DOM structure
+    // Inject styles and HTML structure
     this.shadowRoot.innerHTML = `
       <style>
         :host {
@@ -141,6 +114,84 @@ class CodeEditor extends HTMLElement {
       </div>
     `;
 
+    // Load CodeMirror and dependencies dynamically
+    this.loadCodeMirror().then(() => {
+      this.initializeEditor(language, initialCode);
+    }).catch((err) => {
+      console.error('Failed to load CodeMirror:', err);
+    });
+  }
+
+  // Load CodeMirror scripts dynamically
+  loadCodeMirror() {
+    return new Promise((resolve) => {
+      // Check if CodeMirror is already loaded
+      if (window.CodeMirror) {
+        resolve();
+        return;
+      }
+
+      // Array of CodeMirror CDN scripts
+      const scripts = [
+        'https://unpkg.com/codemirror@6/dist/codemirror.min.js',
+        'https://unpkg.com/@codemirror/lang-javascript@6/dist/index.min.js',
+        'https://unpkg.com/@codemirror/lang-html@6/dist/index.min.js',
+        'https://unpkg.com/@codemirror/lang-css@6/dist/index.min.js',
+        'https://unpkg.com/@codemirror/lang-python@6/dist/index.min.js',
+        'https://unpkg.com/@codemirror/theme-one-dark@6/dist/index.min.js',
+        'https://unpkg.com/@codemirror/autocomplete@6/dist/index.min.js',
+        'https://unpkg.com/@codemirror/gutter@6/dist/index.min.js',
+        'https://unpkg.com/@codemirror/highlight@6/dist/index.min.js',
+        'https://unpkg.com/@codemirror/state@6/dist/index.min.js',
+        'https://unpkg.com/@codemirror/view@6/dist/index.min.js',
+        'https://unpkg.com/@codemirror/commands@6/dist/index.min.js',
+      ];
+
+      // Load each script sequentially
+      const loadScript = (src) => {
+        return new Promise((res, rej) => {
+          const script = document.createElement('script');
+          script.src = src;
+          script.onload = res;
+          script.onerror = rej;
+          document.head.appendChild(script);
+        });
+      };
+
+      scripts.reduce((promise, src) => {
+        return promise.then(() => loadScript(src));
+      }, Promise.resolve()).then(resolve);
+    });
+  }
+
+  // Initialize the CodeMirror editor
+  initializeEditor(language, initialCode) {
+    const { EditorView, basicSetup } = window.CodeMirror;
+    const { javascript } = window.CodeMirrorLangJavaScript;
+    const { html } = window.CodeMirrorLangHtml;
+    const { css } = window.CodeMirrorLangCss;
+    const { python } = window.CodeMirrorLangPython;
+    const { oneDark } = window.CodeMirrorThemeOneDark;
+    const { EditorState } = window.CodeMirrorState;
+    const { lineNumbers, gutter } = window.CodeMirrorGutter;
+    const { autocompletion, completionKeymap } = window.CodeMirrorAutocomplete;
+    const { keymap } = window.CodeMirrorView;
+    const { indentWithTab } = window.CodeMirrorCommands;
+    const { tags, HighlightStyle } = window.CodeMirrorHighlight;
+
+    // Define custom highlight style
+    const customHighlightStyle = HighlightStyle.define([
+      { tag: tags.keyword, color: '#c792ea', fontWeight: 'bold' },
+      { tag: tags.comment, color: '#6272a4', fontStyle: 'italic' },
+      { tag: tags.string, color: '#f1fa8c' },
+      { tag: tags.number, color: '#bd93f9' },
+      { tag: tags.variableName, color: '#50fa7b' },
+      { tag: tags.function, color: '#ffb86c' },
+      { tag: tags.className, color: '#8be9fd' },
+      { tag: tags.tagName, color: '#ff79c6' },
+      { tag: tags.attributeName, color: '#f8f8f2' },
+    ]);
+
     // Map language to CodeMirror language extension
     const languageMap = {
       javascript: javascript({ jsx: true }),
@@ -194,7 +245,7 @@ class CodeEditor extends HTMLElement {
     this.shadowRoot.querySelector('#run-button').addEventListener('click', () => {
       const code = view.state.doc.toString();
       console.log('Running code:', code);
-      // Add custom execution logic here (e.g., eval for JS or send to a server)
+      // Add custom execution logic here
     });
 
     // Handle clear button
@@ -203,11 +254,14 @@ class CodeEditor extends HTMLElement {
         changes: { from: 0, to: view.state.doc.length, insert: '' },
       });
     });
+
+    // Store view for later access
+    this.editorView = view;
   }
 
   // Expose method to get current code
   getCode() {
-    return this.shadowRoot.querySelector('.cm-editor').state.doc.toString();
+    return this.editorView ? this.editorView.state.doc.toString() : '';
   }
 }
 
