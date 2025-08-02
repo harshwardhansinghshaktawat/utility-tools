@@ -27,6 +27,9 @@ K:G
   }
 
   connectedCallback() {
+    // Enable debug mode by default temporarily to help diagnose issues
+    this.setAttribute('debug', 'true');
+    
     // Better Wix integration with proper sizing
     if (window.Wix) {
       // Set initial size and handle resize
@@ -43,6 +46,7 @@ K:G
       });
     }
     
+    this.debugLog('ABC to MIDI Converter initializing...');
     this.initializeAbcJs();
     
     // Initialize audio context on page load with user interaction detection
@@ -671,7 +675,7 @@ K:G
           font-size: 12px;
           color: var(--text-muted);
           margin-top: var(--spacing-lg);
-          display: none;
+          display: block; /* Changed from none to block for debugging */
           max-height: 200px;
           overflow-y: auto;
           background: var(--bg-primary);
@@ -869,16 +873,20 @@ K:G
   }
 
   initializeAbcJs() {
-    // Load both JS and CSS files for abcjs
-    const scriptUrls = ['https://cdn.jsdelivr.net/npm/abcjs@6.2.2/dist/abcjs-basic-min.js'];
-    const cssUrls = ['https://cdn.jsdelivr.net/npm/abcjs@6.2.2/dist/abcjs-audio.css'];
-    
-    Promise.all([
-      this.loadScripts(scriptUrls),
-      this.loadCSS(cssUrls)
-    ])
+    // Load JavaScript first (essential), then CSS (optional for styling)
+    this.loadScripts(['https://cdn.jsdelivr.net/npm/abcjs@6.2.2/dist/abcjs-basic-min.js'])
       .then(() => {
-        this.debugLog('ABCJS library and CSS loaded successfully');
+        this.debugLog('ABCJS library loaded successfully');
+        
+        // Try to load CSS for better styling, but don't block functionality if it fails
+        this.loadCSS(['https://cdn.jsdelivr.net/npm/abcjs@6.2.2/dist/abcjs-audio.css'])
+          .then(() => {
+            this.debugLog('ABCJS CSS loaded successfully');
+          })
+          .catch((cssError) => {
+            this.debugLog('ABCJS CSS failed to load, but functionality will still work: ' + cssError.message);
+          });
+        
         this.setupEventListeners();
         setTimeout(() => this.convertAndRender(), 500);
       })
@@ -891,11 +899,33 @@ K:G
   loadScripts(urls) {
     const promises = urls.map((url) => {
       return new Promise((resolve, reject) => {
+        // Check if script is already loaded
+        const existingScript = document.querySelector(`script[src="${url}"]`);
+        if (existingScript) {
+          this.debugLog('Script already loaded: ' + url);
+          resolve();
+          return;
+        }
+        
         const script = document.createElement('script');
         script.src = url;
         script.async = true;
-        script.onload = resolve;
-        script.onerror = reject;
+        script.onload = () => {
+          this.debugLog('Script loaded successfully: ' + url);
+          resolve();
+        };
+        script.onerror = (error) => {
+          this.debugLog('Script failed to load: ' + url);
+          reject(new Error(`Failed to load script: ${url}`));
+        };
+        
+        // Add timeout for script loading
+        setTimeout(() => {
+          if (!script.onload) {
+            reject(new Error(`Script loading timeout: ${url}`));
+          }
+        }, 10000);
+        
         document.head.appendChild(script);
       });
     });
@@ -905,11 +935,33 @@ K:G
   loadCSS(urls) {
     const promises = urls.map((url) => {
       return new Promise((resolve, reject) => {
+        // Check if CSS is already loaded
+        const existingLink = document.querySelector(`link[href="${url}"]`);
+        if (existingLink) {
+          this.debugLog('CSS already loaded: ' + url);
+          resolve();
+          return;
+        }
+        
         const link = document.createElement('link');
         link.rel = 'stylesheet';
         link.href = url;
-        link.onload = resolve;
-        link.onerror = reject;
+        link.onload = () => {
+          this.debugLog('CSS loaded successfully: ' + url);
+          resolve();
+        };
+        link.onerror = (error) => {
+          this.debugLog('CSS failed to load: ' + url);
+          reject(new Error(`Failed to load CSS: ${url}`));
+        };
+        
+        // Add timeout for CSS loading
+        setTimeout(() => {
+          if (!link.onload) {
+            reject(new Error(`CSS loading timeout: ${url}`));
+          }
+        }, 5000);
+        
         document.head.appendChild(link);
       });
     });
