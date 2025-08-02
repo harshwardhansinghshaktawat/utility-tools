@@ -14,43 +14,140 @@ class AdvancedRichEditor extends HTMLElement {
         this.editor = null;
         this.isFullscreen = false;
         this.currentTheme = 'light';
-        this.isLibrariesLoaded = false;
+        this.useSimpleEditor = false;
+        this.content = '';
+        this.undoStack = [];
+        this.redoStack = [];
     }
 
     connectedCallback() {
+        console.log('Advanced Rich Editor: Initializing...');
         this.innerHTML = this.getHTML();
         this.addStyles();
-        this.loadLibraries().then(() => {
-            this.initializeEditor();
-            this.setupEventListeners();
+        this.hideLoading();
+        this.initializeEditor();
+        this.setupEventListeners();
+    }
+
+    hideLoading() {
+        setTimeout(() => {
+            const loading = this.querySelector('#loading');
+            if (loading) {
+                loading.style.display = 'none';
+            }
+        }, 500);
+    }
+
+    async initializeEditor() {
+        console.log('Advanced Rich Editor: Starting initialization...');
+        
+        // Try to load Editor.js with timeout
+        try {
+            await Promise.race([
+                this.loadEditorJS(),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 10000))
+            ]);
+            console.log('Advanced Rich Editor: Editor.js loaded successfully');
+        } catch (error) {
+            console.warn('Advanced Rich Editor: Editor.js failed to load, using simple editor:', error);
+            this.useSimpleEditor = true;
+            this.initializeSimpleEditor();
+        }
+    }
+
+    async loadEditorJS() {
+        // Load Editor.js core only
+        if (typeof EditorJS === 'undefined') {
+            await this.loadScript('https://cdn.jsdelivr.net/npm/@editorjs/editorjs@latest');
+        }
+
+        // Wait a bit for the library to be ready
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        if (typeof EditorJS === 'undefined') {
+            throw new Error('EditorJS not available');
+        }
+
+        console.log('Advanced Rich Editor: Initializing Editor.js...');
+        
+        // Initialize with minimal configuration
+        this.editor = new EditorJS({
+            holder: 'editorjs',
+            placeholder: 'Start writing your content here...',
+            autofocus: true,
+            data: {
+                blocks: [
+                    {
+                        type: "paragraph",
+                        data: {
+                            text: "Welcome to Advanced Rich Editor! 🎉"
+                        }
+                    },
+                    {
+                        type: "paragraph",
+                        data: {
+                            text: "Start creating your content here. Use the toolbar above to add different types of content blocks."
+                        }
+                    },
+                    {
+                        type: "paragraph",
+                        data: {
+                            text: "Click the <b>+</b> button on the left to add new blocks, or use the tools in the sidebar!"
+                        }
+                    }
+                ]
+            },
+            onChange: () => {
+                this.updateStats();
+            },
+            onReady: () => {
+                console.log('Advanced Rich Editor: Editor.js ready');
+                this.updateStats();
+                this.showStatus('Editor ready!');
+            }
         });
     }
 
-    async loadLibraries() {
-        if (this.isLibrariesLoaded) return;
-
-        // Load Editor.js core
-        await this.loadScript('https://cdn.jsdelivr.net/npm/@editorjs/editorjs@latest');
+    initializeSimpleEditor() {
+        console.log('Advanced Rich Editor: Initializing simple editor...');
+        const editorContainer = this.querySelector('#editorjs');
         
-        // Load Editor.js plugins
-        await Promise.all([
-            this.loadScript('https://cdn.jsdelivr.net/npm/@editorjs/header@latest'),
-            this.loadScript('https://cdn.jsdelivr.net/npm/@editorjs/list@latest'),
-            this.loadScript('https://cdn.jsdelivr.net/npm/@editorjs/image@latest'),
-            this.loadScript('https://cdn.jsdelivr.net/npm/@editorjs/link@latest'),
-            this.loadScript('https://cdn.jsdelivr.net/npm/@editorjs/quote@latest'),
-            this.loadScript('https://cdn.jsdelivr.net/npm/@editorjs/code@latest'),
-            this.loadScript('https://cdn.jsdelivr.net/npm/@editorjs/delimiter@latest'),
-            this.loadScript('https://cdn.jsdelivr.net/npm/@editorjs/table@latest'),
-            this.loadScript('https://cdn.jsdelivr.net/npm/@editorjs/embed@latest'),
-            this.loadScript('https://cdn.jsdelivr.net/npm/@editorjs/marker@latest'),
-            this.loadScript('https://cdn.jsdelivr.net/npm/@editorjs/inline-code@latest'),
-            this.loadScript('https://cdn.jsdelivr.net/npm/@editorjs/checklist@latest'),
-            this.loadScript('https://cdn.jsdelivr.net/npm/@editorjs/warning@latest'),
-            this.loadScript('https://cdn.jsdelivr.net/npm/@editorjs/raw@latest')
-        ]);
+        editorContainer.innerHTML = `
+            <div class="simple-editor" contenteditable="true" spellcheck="true">
+                <h1>Welcome to Advanced Rich Editor! 🎉</h1>
+                <p>This is the simple editor mode. You can still create great content!</p>
+                <p>Features available:</p>
+                <ul>
+                    <li><strong>Bold text</strong> and <em>italic text</em></li>
+                    <li>Lists and headings</li>
+                    <li>Links and basic formatting</li>
+                    <li>Export to HTML, Markdown, and more</li>
+                </ul>
+                <p>Use the toolbar above to format your text!</p>
+            </div>
+        `;
 
-        this.isLibrariesLoaded = true;
+        this.simpleEditor = editorContainer.querySelector('.simple-editor');
+        this.simpleEditor.addEventListener('input', () => {
+            this.updateStats();
+            this.saveState();
+        });
+
+        this.simpleEditor.addEventListener('keydown', (e) => {
+            if (e.ctrlKey || e.metaKey) {
+                if (e.key === 'z' && !e.shiftKey) {
+                    e.preventDefault();
+                    this.undo();
+                } else if ((e.key === 'z' && e.shiftKey) || e.key === 'y') {
+                    e.preventDefault();
+                    this.redo();
+                }
+            }
+        });
+
+        this.updateStats();
+        this.saveState();
+        this.showStatus('Simple editor ready!');
     }
 
     loadScript(src) {
@@ -63,8 +160,14 @@ class AdvancedRichEditor extends HTMLElement {
 
             const script = document.createElement('script');
             script.src = src;
-            script.onload = resolve;
-            script.onerror = reject;
+            script.onload = () => {
+                console.log('Script loaded:', src);
+                resolve();
+            };
+            script.onerror = (error) => {
+                console.error('Script failed to load:', src, error);
+                reject(error);
+            };
             document.head.appendChild(script);
         });
     }
@@ -82,6 +185,41 @@ class AdvancedRichEditor extends HTMLElement {
                     </div>
                 </div>
 
+                <div class="are-toolbar">
+                    <div class="are-group">
+                        <button class="are-tool-btn" data-command="bold" title="Bold">𝐁</button>
+                        <button class="are-tool-btn" data-command="italic" title="Italic">𝐼</button>
+                        <button class="are-tool-btn" data-command="underline" title="Underline">U̲</button>
+                        <button class="are-tool-btn" data-command="strikethrough" title="Strike">S̶</button>
+                    </div>
+                    <div class="are-group">
+                        <select class="are-select" id="format-select">
+                            <option value="">Normal</option>
+                            <option value="h1">Heading 1</option>
+                            <option value="h2">Heading 2</option>
+                            <option value="h3">Heading 3</option>
+                            <option value="h4">Heading 4</option>
+                        </select>
+                    </div>
+                    <div class="are-group">
+                        <button class="are-tool-btn" data-command="insertUnorderedList" title="Bullet List">•</button>
+                        <button class="are-tool-btn" data-command="insertOrderedList" title="Numbered List">1.</button>
+                        <button class="are-tool-btn" data-command="justifyLeft" title="Left">⬅</button>
+                        <button class="are-tool-btn" data-command="justifyCenter" title="Center">↔</button>
+                        <button class="are-tool-btn" data-command="justifyRight" title="Right">➡</button>
+                    </div>
+                    <div class="are-group">
+                        <button class="are-tool-btn" id="insert-link" title="Link">🔗</button>
+                        <button class="are-tool-btn" id="insert-image" title="Image">🖼️</button>
+                        <button class="are-tool-btn" id="insert-table" title="Table">📊</button>
+                        <button class="are-tool-btn" id="insert-hr" title="Divider">➖</button>
+                    </div>
+                    <div class="are-group">
+                        <button class="are-tool-btn" data-command="undo" title="Undo">↶</button>
+                        <button class="are-tool-btn" data-command="redo" title="Redo">↷</button>
+                    </div>
+                </div>
+
                 <div class="are-content">
                     <div class="are-sidebar">
                         <div class="are-tab active" data-panel="templates" title="Templates">📄</div>
@@ -91,19 +229,7 @@ class AdvancedRichEditor extends HTMLElement {
                     </div>
 
                     <div class="are-editor-area">
-                        <div class="are-editor-toolbar">
-                            <button class="are-tool-btn" id="add-header" title="Add Header">📰</button>
-                            <button class="are-tool-btn" id="add-list" title="Add List">📝</button>
-                            <button class="are-tool-btn" id="add-quote" title="Add Quote">💬</button>
-                            <button class="are-tool-btn" id="add-code" title="Add Code">💻</button>
-                            <button class="are-tool-btn" id="add-image" title="Add Image">🖼️</button>
-                            <button class="are-tool-btn" id="add-link" title="Add Link">🔗</button>
-                            <button class="are-tool-btn" id="add-table" title="Add Table">📊</button>
-                            <button class="are-tool-btn" id="add-embed" title="Add Embed">📺</button>
-                        </div>
-                        <div class="are-editor-container">
-                            <div id="editorjs" class="are-editor"></div>
-                        </div>
+                        <div id="editorjs" class="are-editor"></div>
                     </div>
 
                     <div class="are-panel">
@@ -117,23 +243,15 @@ class AdvancedRichEditor extends HTMLElement {
                                 </div>
                                 <div class="are-template" data-template="article">
                                     <div class="template-icon">📰</div>
-                                    <div class="template-name">News Article</div>
+                                    <div class="template-name">Article</div>
                                 </div>
                                 <div class="are-template" data-template="newsletter">
                                     <div class="template-icon">📧</div>
                                     <div class="template-name">Newsletter</div>
                                 </div>
-                                <div class="are-template" data-template="documentation">
+                                <div class="are-template" data-template="docs">
                                     <div class="template-icon">📋</div>
                                     <div class="template-name">Documentation</div>
-                                </div>
-                                <div class="are-template" data-template="tutorial">
-                                    <div class="template-icon">🎓</div>
-                                    <div class="template-name">Tutorial</div>
-                                </div>
-                                <div class="are-template" data-template="report">
-                                    <div class="template-icon">📊</div>
-                                    <div class="template-name">Report</div>
                                 </div>
                             </div>
                         </div>
@@ -142,13 +260,13 @@ class AdvancedRichEditor extends HTMLElement {
                         <div class="are-panel-content" id="blocks-panel">
                             <h3>🧩 Content Blocks</h3>
                             <div class="are-blocks-grid">
-                                <div class="are-block" data-block="paragraph">
-                                    <div class="block-icon">📝</div>
-                                    <div class="block-name">Paragraph</div>
-                                </div>
                                 <div class="are-block" data-block="header">
                                     <div class="block-icon">📰</div>
                                     <div class="block-name">Header</div>
+                                </div>
+                                <div class="are-block" data-block="paragraph">
+                                    <div class="block-icon">📝</div>
+                                    <div class="block-name">Paragraph</div>
                                 </div>
                                 <div class="are-block" data-block="list">
                                     <div class="block-icon">📋</div>
@@ -162,33 +280,9 @@ class AdvancedRichEditor extends HTMLElement {
                                     <div class="block-icon">💻</div>
                                     <div class="block-name">Code</div>
                                 </div>
-                                <div class="are-block" data-block="table">
-                                    <div class="block-icon">📊</div>
-                                    <div class="block-name">Table</div>
-                                </div>
-                                <div class="are-block" data-block="embed">
-                                    <div class="block-icon">📺</div>
-                                    <div class="block-name">Embed</div>
-                                </div>
                                 <div class="are-block" data-block="image">
                                     <div class="block-icon">🖼️</div>
                                     <div class="block-name">Image</div>
-                                </div>
-                                <div class="are-block" data-block="delimiter">
-                                    <div class="block-icon">➖</div>
-                                    <div class="block-name">Divider</div>
-                                </div>
-                                <div class="are-block" data-block="warning">
-                                    <div class="block-icon">⚠️</div>
-                                    <div class="block-name">Warning</div>
-                                </div>
-                                <div class="are-block" data-block="checklist">
-                                    <div class="block-icon">✅</div>
-                                    <div class="block-name">Checklist</div>
-                                </div>
-                                <div class="are-block" data-block="raw">
-                                    <div class="block-icon">🔧</div>
-                                    <div class="block-name">Raw HTML</div>
                                 </div>
                             </div>
                         </div>
@@ -205,48 +299,38 @@ class AdvancedRichEditor extends HTMLElement {
                                     <div class="export-icon">📝</div>
                                     <div class="export-name">Markdown</div>
                                 </button>
-                                <button class="are-export-btn" data-format="json">
-                                    <div class="export-icon">🔧</div>
-                                    <div class="export-name">JSON</div>
-                                </button>
                                 <button class="are-export-btn" data-format="text">
                                     <div class="export-icon">📋</div>
                                     <div class="export-name">Plain Text</div>
                                 </button>
-                                <button class="are-export-btn" data-format="pdf">
-                                    <div class="export-icon">📕</div>
-                                    <div class="export-name">PDF</div>
+                                <button class="are-export-btn" data-format="json">
+                                    <div class="export-icon">🔧</div>
+                                    <div class="export-name">JSON</div>
                                 </button>
                                 <button class="are-export-btn" data-format="copy">
                                     <div class="export-icon">📋</div>
                                     <div class="export-name">Copy</div>
                                 </button>
-                            </div>
-                            <div class="are-export-options">
-                                <label class="are-checkbox">
-                                    <input type="checkbox" id="include-styles" checked>
-                                    <span class="checkmark"></span>
-                                    Include Styles
-                                </label>
-                                <label class="are-checkbox">
-                                    <input type="checkbox" id="include-metadata" checked>
-                                    <span class="checkmark"></span>
-                                    Include Metadata
-                                </label>
-                                <label class="are-checkbox">
-                                    <input type="checkbox" id="minify-output">
-                                    <span class="checkmark"></span>
-                                    Minify Output
-                                </label>
+                                <button class="are-export-btn" data-format="print">
+                                    <div class="export-icon">🖨️</div>
+                                    <div class="export-name">Print</div>
+                                </button>
                             </div>
                         </div>
 
                         <!-- Settings Panel -->
                         <div class="are-panel-content" id="settings-panel">
-                            <h3>⚙️ Editor Settings</h3>
+                            <h3>⚙️ Settings</h3>
                             <div class="are-settings">
                                 <div class="setting-group">
-                                    <label>Editor Theme</label>
+                                    <label>Editor Mode</label>
+                                    <select id="editor-mode" class="are-select">
+                                        <option value="auto">Auto (Try Editor.js)</option>
+                                        <option value="simple">Simple Editor</option>
+                                    </select>
+                                </div>
+                                <div class="setting-group">
+                                    <label>Theme</label>
                                     <select id="editor-theme" class="are-select">
                                         <option value="light">Light</option>
                                         <option value="dark">Dark</option>
@@ -254,24 +338,7 @@ class AdvancedRichEditor extends HTMLElement {
                                     </select>
                                 </div>
                                 <div class="setting-group">
-                                    <label>Auto-save</label>
-                                    <label class="are-checkbox">
-                                        <input type="checkbox" id="auto-save" checked>
-                                        <span class="checkmark"></span>
-                                        Enable auto-save
-                                    </label>
-                                </div>
-                                <div class="setting-group">
-                                    <label>Save Interval</label>
-                                    <select id="save-interval" class="are-select">
-                                        <option value="30">30 seconds</option>
-                                        <option value="60">1 minute</option>
-                                        <option value="300">5 minutes</option>
-                                        <option value="600">10 minutes</option>
-                                    </select>
-                                </div>
-                                <div class="setting-group">
-                                    <button class="are-btn-primary" id="reset-settings">Reset to Default</button>
+                                    <button class="are-btn-primary" id="reset-editor">Reset Editor</button>
                                 </div>
                             </div>
                         </div>
@@ -279,7 +346,7 @@ class AdvancedRichEditor extends HTMLElement {
                 </div>
 
                 <div class="are-status-bar">
-                    <span id="block-count">Blocks: 0</span>
+                    <span id="editor-mode-status">Mode: Loading...</span>
                     <span id="word-count">Words: 0</span>
                     <span id="char-count">Characters: 0</span>
                     <span id="last-saved">Ready</span>
@@ -298,16 +365,15 @@ class AdvancedRichEditor extends HTMLElement {
         style.textContent = `
             .are-container {
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                max-width: 1400px;
+                max-width: 1200px;
                 margin: 0 auto;
                 background: linear-gradient(145deg, #f0f0f3, #e6e6e9);
                 border-radius: 20px;
                 box-shadow: 20px 20px 60px #d1d1d4, -20px -20px 60px #ffffff;
                 padding: 20px;
-                min-height: 700px;
+                min-height: 600px;
                 transition: all 0.3s ease;
                 position: relative;
-                overflow: hidden;
             }
 
             .are-container.dark {
@@ -340,10 +406,6 @@ class AdvancedRichEditor extends HTMLElement {
                 justify-content: center;
                 border-radius: 20px;
                 z-index: 1000;
-            }
-
-            .are-loading.hidden {
-                display: none;
             }
 
             .loading-spinner {
@@ -408,9 +470,6 @@ class AdvancedRichEditor extends HTMLElement {
                 font-size: 14px;
                 color: #333;
                 min-width: 40px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
             }
 
             .are-container.dark .are-btn,
@@ -437,10 +496,57 @@ class AdvancedRichEditor extends HTMLElement {
                 box-shadow: 5px 5px 15px rgba(102, 126, 234, 0.3);
             }
 
+            .are-toolbar {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 15px;
+                margin-bottom: 20px;
+                padding: 15px;
+                background: linear-gradient(145deg, #f0f0f3, #e6e6e9);
+                border-radius: 15px;
+                box-shadow: inset 3px 3px 8px #d1d1d4, inset -3px -3px 8px #ffffff;
+            }
+
+            .are-container.dark .are-toolbar {
+                background: linear-gradient(145deg, #2c2c2c, #1a1a1a);
+                box-shadow: inset 3px 3px 8px #0f0f0f, inset -3px -3px 8px #3a3a3a;
+            }
+
+            .are-group {
+                display: flex;
+                gap: 5px;
+                align-items: center;
+                padding: 5px;
+                background: linear-gradient(145deg, #e6e6e9, #f0f0f3);
+                border-radius: 10px;
+                box-shadow: 2px 2px 5px #d1d1d4, -2px -2px 5px #ffffff;
+            }
+
+            .are-container.dark .are-group {
+                background: linear-gradient(145deg, #1a1a1a, #2c2c2c);
+                box-shadow: 2px 2px 5px #0f0f0f, -2px -2px 5px #3a3a3a;
+            }
+
+            .are-select {
+                background: linear-gradient(145deg, #f0f0f3, #e6e6e9);
+                border: none;
+                border-radius: 8px;
+                padding: 8px 12px;
+                box-shadow: inset 2px 2px 5px #d1d1d4, inset -2px -2px 5px #ffffff;
+                color: #333;
+                min-width: 120px;
+            }
+
+            .are-container.dark .are-select {
+                background: linear-gradient(145deg, #2c2c2c, #1a1a1a);
+                box-shadow: inset 2px 2px 5px #0f0f0f, inset -2px -2px 5px #3a3a3a;
+                color: #e0e0e0;
+            }
+
             .are-content {
                 display: flex;
                 gap: 20px;
-                min-height: 500px;
+                min-height: 400px;
             }
 
             .are-sidebar {
@@ -489,12 +595,10 @@ class AdvancedRichEditor extends HTMLElement {
 
             .are-editor-area {
                 flex: 1;
-                display: flex;
-                flex-direction: column;
                 background: linear-gradient(145deg, #f0f0f3, #e6e6e9);
                 border-radius: 15px;
                 box-shadow: inset 5px 5px 15px #d1d1d4, inset -5px -5px 15px #ffffff;
-                overflow: hidden;
+                padding: 20px;
             }
 
             .are-container.dark .are-editor-area {
@@ -502,87 +606,44 @@ class AdvancedRichEditor extends HTMLElement {
                 box-shadow: inset 5px 5px 15px #0f0f0f, inset -5px -5px 15px #3a3a3a;
             }
 
-            .are-editor-toolbar {
-                display: flex;
-                gap: 8px;
-                padding: 15px 20px;
-                border-bottom: 1px solid rgba(0,0,0,0.1);
-                background: rgba(255,255,255,0.1);
-                backdrop-filter: blur(10px);
-                flex-wrap: wrap;
-            }
-
-            .are-container.dark .are-editor-toolbar {
-                border-bottom: 1px solid rgba(255,255,255,0.1);
-                background: rgba(0,0,0,0.1);
-            }
-
-            .are-editor-container {
-                flex: 1;
-                padding: 20px;
-                overflow-y: auto;
-            }
-
             .are-editor {
                 min-height: 400px;
                 background: transparent;
-                border-radius: 10px;
+                border: none;
+                outline: none;
+                line-height: 1.6;
+                font-size: 16px;
+                color: inherit;
             }
 
-            /* Editor.js Customization */
-            .codex-editor {
-                background: transparent !important;
+            .simple-editor {
+                min-height: 400px;
+                background: transparent;
+                border: none;
+                outline: none;
+                line-height: 1.6;
+                font-size: 16px;
+                color: inherit;
+                padding: 0;
             }
 
-            .codex-editor__redactor {
-                background: transparent !important;
-                padding: 0 !important;
+            .simple-editor h1, .simple-editor h2, .simple-editor h3,
+            .simple-editor h4, .simple-editor h5, .simple-editor h6 {
+                margin: 1em 0 0.5em 0;
+                color: inherit;
             }
 
-            .ce-block__content {
-                background: transparent !important;
+            .simple-editor p {
+                margin: 0.5em 0;
             }
 
-            .ce-toolbar__plus,
-            .ce-toolbar__settings-btn {
-                background: linear-gradient(145deg, #f0f0f3, #e6e6e9) !important;
-                box-shadow: 3px 3px 8px #d1d1d4, -3px -3px 8px #ffffff !important;
-                border: none !important;
-                color: #333 !important;
-            }
-
-            .are-container.dark .ce-toolbar__plus,
-            .are-container.dark .ce-toolbar__settings-btn {
-                background: linear-gradient(145deg, #2c2c2c, #1a1a1a) !important;
-                box-shadow: 3px 3px 8px #0f0f0f, -3px -3px 8px #3a3a3a !important;
-                color: #e0e0e0 !important;
-            }
-
-            .ce-popover {
-                background: linear-gradient(145deg, #f0f0f3, #e6e6e9) !important;
-                box-shadow: 10px 10px 30px #d1d1d4, -10px -10px 30px #ffffff !important;
-                border: none !important;
-                border-radius: 12px !important;
-            }
-
-            .are-container.dark .ce-popover {
-                background: linear-gradient(145deg, #2c2c2c, #1a1a1a) !important;
-                box-shadow: 10px 10px 30px #0f0f0f, -10px -10px 30px #3a3a3a !important;
-            }
-
-            .ce-popover-item {
-                background: transparent !important;
-                color: inherit !important;
-                border-radius: 8px !important;
-                margin: 2px !important;
-            }
-
-            .ce-popover-item:hover {
-                background: rgba(102, 126, 234, 0.1) !important;
+            .simple-editor ul, .simple-editor ol {
+                margin: 0.5em 0;
+                padding-left: 2em;
             }
 
             .are-panel {
-                width: 320px;
+                width: 300px;
                 background: linear-gradient(145deg, #f0f0f3, #e6e6e9);
                 border-radius: 15px;
                 box-shadow: inset 3px 3px 8px #d1d1d4, inset -3px -3px 8px #ffffff;
@@ -604,137 +665,70 @@ class AdvancedRichEditor extends HTMLElement {
             }
 
             .are-panel-content h3 {
-                margin: 0 0 20px 0;
+                margin: 0 0 15px 0;
                 color: inherit;
-                font-size: 18px;
-                font-weight: 600;
             }
 
             .are-template-grid, .are-blocks-grid, .are-export-grid {
                 display: grid;
                 grid-template-columns: 1fr 1fr;
-                gap: 12px;
-                margin: 20px 0;
+                gap: 10px;
+                margin: 15px 0;
             }
 
             .are-template, .are-block, .are-export-btn {
-                padding: 20px 15px;
+                padding: 15px 10px;
                 border: none;
-                border-radius: 12px;
+                border-radius: 8px;
                 cursor: pointer;
                 background: linear-gradient(145deg, #e6e6e9, #f0f0f3);
-                box-shadow: 5px 5px 15px #d1d1d4, -5px -5px 15px #ffffff;
+                box-shadow: 2px 2px 5px #d1d1d4, -2px -2px 5px #ffffff;
                 transition: all 0.2s ease;
                 color: #333;
                 text-align: center;
                 display: flex;
                 flex-direction: column;
                 align-items: center;
-                gap: 8px;
+                gap: 5px;
             }
 
             .are-container.dark .are-template,
             .are-container.dark .are-block,
             .are-container.dark .are-export-btn {
                 background: linear-gradient(145deg, #1a1a1a, #2c2c2c);
-                box-shadow: 5px 5px 15px #0f0f0f, -5px -5px 15px #3a3a3a;
+                box-shadow: 2px 2px 5px #0f0f0f, -2px -2px 5px #3a3a3a;
                 color: #e0e0e0;
             }
 
             .are-template:hover, .are-block:hover, .are-export-btn:hover {
-                box-shadow: inset 3px 3px 8px #d1d1d4, inset -3px -3px 8px #ffffff;
-                transform: translateY(2px);
+                box-shadow: inset 2px 2px 5px #d1d1d4, inset -2px -2px 5px #ffffff;
             }
 
             .are-container.dark .are-template:hover,
             .are-container.dark .are-block:hover,
             .are-container.dark .are-export-btn:hover {
-                box-shadow: inset 3px 3px 8px #0f0f0f, inset -3px -3px 8px #3a3a3a;
-            }
-
-            .template-icon, .block-icon, .export-icon {
-                font-size: 24px;
-                margin-bottom: 5px;
-            }
-
-            .template-name, .block-name, .export-name {
-                font-size: 12px;
-                font-weight: 500;
-            }
-
-            .are-export-options {
-                margin-top: 20px;
-                padding-top: 20px;
-                border-top: 1px solid rgba(0,0,0,0.1);
-            }
-
-            .are-container.dark .are-export-options {
-                border-top: 1px solid rgba(255,255,255,0.1);
-            }
-
-            .are-checkbox {
-                display: flex;
-                align-items: center;
-                margin: 12px 0;
-                font-size: 14px;
-                cursor: pointer;
-                position: relative;
-                padding-left: 30px;
-            }
-
-            .are-checkbox input {
-                position: absolute;
-                opacity: 0;
-                cursor: pointer;
-            }
-
-            .checkmark {
-                position: absolute;
-                left: 0;
-                height: 20px;
-                width: 20px;
-                background: linear-gradient(145deg, #f0f0f3, #e6e6e9);
-                border-radius: 5px;
-                box-shadow: inset 2px 2px 5px #d1d1d4, inset -2px -2px 5px #ffffff;
-            }
-
-            .are-container.dark .checkmark {
-                background: linear-gradient(145deg, #2c2c2c, #1a1a1a);
                 box-shadow: inset 2px 2px 5px #0f0f0f, inset -2px -2px 5px #3a3a3a;
             }
 
-            .are-checkbox input:checked ~ .checkmark {
-                background: linear-gradient(145deg, #667eea, #764ba2);
-                box-shadow: 2px 2px 5px rgba(102, 126, 234, 0.3);
+            .template-icon, .block-icon, .export-icon {
+                font-size: 20px;
             }
 
-            .checkmark:after {
-                content: "";
-                position: absolute;
-                display: none;
-                left: 7px;
-                top: 3px;
-                width: 5px;
-                height: 10px;
-                border: solid white;
-                border-width: 0 3px 3px 0;
-                transform: rotate(45deg);
-            }
-
-            .are-checkbox input:checked ~ .checkmark:after {
-                display: block;
+            .template-name, .block-name, .export-name {
+                font-size: 11px;
+                font-weight: 500;
             }
 
             .are-settings {
                 display: flex;
                 flex-direction: column;
-                gap: 20px;
+                gap: 15px;
             }
 
             .setting-group {
                 display: flex;
                 flex-direction: column;
-                gap: 8px;
+                gap: 5px;
             }
 
             .setting-group label {
@@ -743,28 +737,11 @@ class AdvancedRichEditor extends HTMLElement {
                 color: inherit;
             }
 
-            .are-select {
-                background: linear-gradient(145deg, #f0f0f3, #e6e6e9);
-                border: none;
-                border-radius: 8px;
-                padding: 10px 12px;
-                box-shadow: inset 2px 2px 5px #d1d1d4, inset -2px -2px 5px #ffffff;
-                color: #333;
-                font-size: 14px;
-                cursor: pointer;
-            }
-
-            .are-container.dark .are-select {
-                background: linear-gradient(145deg, #2c2c2c, #1a1a1a);
-                box-shadow: inset 2px 2px 5px #0f0f0f, inset -2px -2px 5px #3a3a3a;
-                color: #e0e0e0;
-            }
-
             .are-status-bar {
                 display: flex;
                 justify-content: space-between;
                 margin-top: 20px;
-                padding: 12px 20px;
+                padding: 10px 20px;
                 background: linear-gradient(145deg, #f0f0f3, #e6e6e9);
                 border-radius: 15px;
                 box-shadow: inset 2px 2px 5px #d1d1d4, inset -2px -2px 5px #ffffff;
@@ -780,7 +757,21 @@ class AdvancedRichEditor extends HTMLElement {
                 color: #999;
             }
 
-            @media (max-width: 1024px) {
+            /* Editor.js overrides */
+            .codex-editor {
+                background: transparent !important;
+            }
+
+            .codex-editor__redactor {
+                background: transparent !important;
+                padding: 0 !important;
+            }
+
+            .ce-block__content {
+                background: transparent !important;
+            }
+
+            @media (max-width: 768px) {
                 .are-content {
                     flex-direction: column;
                 }
@@ -793,186 +784,19 @@ class AdvancedRichEditor extends HTMLElement {
                 
                 .are-panel {
                     width: auto;
-                    max-height: 300px;
                 }
-
-                .are-template-grid, .are-blocks-grid, .are-export-grid {
-                    grid-template-columns: repeat(3, 1fr);
+                
+                .are-toolbar {
+                    flex-direction: column;
+                    align-items: stretch;
                 }
-            }
-
-            @media (max-width: 768px) {
-                .are-container {
-                    padding: 15px;
-                }
-
-                .are-header-controls {
-                    flex-wrap: wrap;
-                }
-
-                .are-editor-toolbar {
-                    padding: 10px 15px;
-                }
-
-                .are-template-grid, .are-blocks-grid, .are-export-grid {
-                    grid-template-columns: repeat(2, 1fr);
-                    gap: 8px;
-                }
-
-                .are-status-bar {
-                    font-size: 11px;
-                    padding: 8px 15px;
+                
+                .are-group {
+                    justify-content: center;
                 }
             }
         `;
         this.appendChild(style);
-    }
-
-    async initializeEditor() {
-        try {
-            // Hide loading screen after a brief moment to show it loaded
-            setTimeout(() => {
-                this.querySelector('#loading').classList.add('hidden');
-            }, 1000);
-
-            // Initialize Editor.js
-            this.editor = new EditorJS({
-                holder: 'editorjs',
-                placeholder: 'Start writing your amazing content...',
-                autofocus: true,
-                tools: {
-                    header: {
-                        class: Header,
-                        config: {
-                            placeholder: 'Enter a header',
-                            levels: [1, 2, 3, 4, 5, 6],
-                            defaultLevel: 2
-                        }
-                    },
-                    list: {
-                        class: List,
-                        inlineToolbar: true,
-                        config: {
-                            defaultStyle: 'unordered'
-                        }
-                    },
-                    checklist: {
-                        class: Checklist,
-                        inlineToolbar: true,
-                    },
-                    quote: {
-                        class: Quote,
-                        inlineToolbar: true,
-                        shortcut: 'CMD+SHIFT+O',
-                        config: {
-                            quotePlaceholder: 'Enter a quote',
-                            captionPlaceholder: 'Quote author',
-                        },
-                    },
-                    warning: Warning,
-                    marker: {
-                        class: Marker,
-                        shortcut: 'CMD+SHIFT+M',
-                    },
-                    code: {
-                        class: CodeTool,
-                        shortcut: 'CMD+SHIFT+C',
-                    },
-                    delimiter: Delimiter,
-                    inlineCode: {
-                        class: InlineCode,
-                        shortcut: 'CMD+SHIFT+M',
-                    },
-                    linkTool: {
-                        class: LinkTool,
-                        config: {
-                            endpoint: 'https://link-preview-api.herokuapp.com/v1/extract'
-                        }
-                    },
-                    image: {
-                        class: ImageTool,
-                        config: {
-                            endpoints: {
-                                byFile: 'https://httpbin.org/post',
-                                byUrl: 'https://httpbin.org/post',
-                            }
-                        }
-                    },
-                    embed: {
-                        class: Embed,
-                        config: {
-                            services: {
-                                youtube: true,
-                                coub: true,
-                                codepen: true,
-                                instagram: true,
-                                twitter: true,
-                                vimeo: true
-                            }
-                        }
-                    },
-                    table: {
-                        class: Table,
-                        inlineToolbar: true,
-                        config: {
-                            rows: 2,
-                            cols: 3,
-                        },
-                    },
-                    raw: RawTool,
-                },
-                data: {
-                    blocks: [
-                        {
-                            type: "header",
-                            data: {
-                                text: "Welcome to Advanced Rich Editor!",
-                                level: 1
-                            }
-                        },
-                        {
-                            type: "paragraph",
-                            data: {
-                                text: "This is a powerful block-styled editor built with Editor.js. Create amazing content with:"
-                            }
-                        },
-                        {
-                            type: "list",
-                            data: {
-                                style: "unordered",
-                                items: [
-                                    "Rich text blocks (headers, paragraphs, quotes)",
-                                    "Media embeds (YouTube, Instagram, Twitter)",
-                                    "Code blocks with syntax highlighting",
-                                    "Tables, checklists, and warnings",
-                                    "Multiple export formats (HTML, Markdown, JSON)",
-                                    "Beautiful neumorphic design"
-                                ]
-                            }
-                        },
-                        {
-                            type: "quote",
-                            data: {
-                                text: "Start creating your content by clicking the + button or use the sidebar tools!",
-                                caption: "Advanced Rich Editor",
-                                alignment: "left"
-                            }
-                        }
-                    ]
-                },
-                onChange: () => {
-                    this.updateStats();
-                    this.autoSave();
-                },
-                onReady: () => {
-                    this.updateStats();
-                }
-            });
-
-        } catch (error) {
-            console.error('Error initializing editor:', error);
-            this.showStatus('Error loading editor', 'error');
-        }
     }
 
     setupEventListeners() {
@@ -991,12 +815,22 @@ class AdvancedRichEditor extends HTMLElement {
                 case 'clear-btn':
                     this.clearContent();
                     break;
+                case 'reset-editor':
+                    this.resetEditor();
+                    break;
             }
 
-            // Toolbar quick-add buttons
-            if (e.target.classList.contains('are-tool-btn')) {
-                this.addBlock(e.target.id.replace('add-', ''));
+            // Toolbar commands (for simple editor)
+            const command = e.target.dataset.command;
+            if (command && this.useSimpleEditor) {
+                this.execCommand(command);
             }
+
+            // Special buttons
+            if (e.target.id === 'insert-link') this.insertLink();
+            if (e.target.id === 'insert-image') this.insertImage();
+            if (e.target.id === 'insert-table') this.insertTable();
+            if (e.target.id === 'insert-hr') this.insertHR();
 
             // Panel tabs
             if (e.target.classList.contains('are-tab')) {
@@ -1008,8 +842,8 @@ class AdvancedRichEditor extends HTMLElement {
                 this.loadTemplate(e.target.dataset.template);
             }
 
-            // Blocks
-            if (e.target.classList.contains('are-block')) {
+            // Blocks (for Editor.js)
+            if (e.target.classList.contains('are-block') && !this.useSimpleEditor) {
                 this.addBlock(e.target.dataset.block);
             }
 
@@ -1017,31 +851,81 @@ class AdvancedRichEditor extends HTMLElement {
             if (e.target.classList.contains('are-export-btn')) {
                 this.exportContent(e.target.dataset.format);
             }
+        });
 
-            // Settings
-            if (e.target.id === 'reset-settings') {
-                this.resetSettings();
+        // Format select
+        this.querySelector('#format-select').addEventListener('change', (e) => {
+            if (this.useSimpleEditor && e.target.value) {
+                this.execCommand('formatBlock', '<' + e.target.value + '>');
             }
         });
 
-        // Settings changes
+        // Settings
         this.querySelector('#editor-theme').addEventListener('change', (e) => {
-            if (e.target.value === 'auto') {
-                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                this.setTheme(prefersDark ? 'dark' : 'light');
-            } else {
-                this.setTheme(e.target.value);
-            }
+            this.setTheme(e.target.value);
         });
 
-        // Auto-save toggle
-        this.querySelector('#auto-save').addEventListener('change', (e) => {
-            this.autoSaveEnabled = e.target.checked;
+        this.querySelector('#editor-mode').addEventListener('change', (e) => {
+            if (e.target.value === 'simple') {
+                this.useSimpleEditor = true;
+                this.initializeSimpleEditor();
+            }
         });
     }
 
+    // Simple editor commands
+    execCommand(command, value = null) {
+        if (!this.useSimpleEditor) return;
+        document.execCommand(command, false, value);
+        this.simpleEditor.focus();
+    }
+
+    insertLink() {
+        const url = prompt('Enter URL:');
+        if (url) {
+            if (this.useSimpleEditor) {
+                this.execCommand('createLink', url);
+            }
+        }
+    }
+
+    insertImage() {
+        const url = prompt('Enter image URL:');
+        if (url) {
+            if (this.useSimpleEditor) {
+                this.execCommand('insertImage', url);
+            }
+        }
+    }
+
+    insertTable() {
+        if (this.useSimpleEditor) {
+            const html = `
+                <table border="1" style="border-collapse: collapse; width: 100%; margin: 10px 0;">
+                    <tr>
+                        <th style="padding: 8px; background: #f0f0f0;">Header 1</th>
+                        <th style="padding: 8px; background: #f0f0f0;">Header 2</th>
+                        <th style="padding: 8px; background: #f0f0f0;">Header 3</th>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px;">Cell 1</td>
+                        <td style="padding: 8px;">Cell 2</td>
+                        <td style="padding: 8px;">Cell 3</td>
+                    </tr>
+                </table>
+            `;
+            this.execCommand('insertHTML', html);
+        }
+    }
+
+    insertHR() {
+        if (this.useSimpleEditor) {
+            this.execCommand('insertHTML', '<hr style="margin: 20px 0;">');
+        }
+    }
+
     async addBlock(type) {
-        if (!this.editor) return;
+        if (this.useSimpleEditor || !this.editor) return;
 
         try {
             const index = await this.editor.blocks.getCurrentBlockIndex();
@@ -1065,569 +949,184 @@ class AdvancedRichEditor extends HTMLElement {
         this.querySelector(`#${panelName}-panel`).classList.add('active');
     }
 
-    async loadTemplate(templateName) {
-        if (!this.editor) return;
-
+    loadTemplate(templateName) {
         const templates = {
-            blog: {
-                blocks: [
-                    {
-                        type: "header",
-                        data: { text: "Blog Post Title", level: 1 }
-                    },
-                    {
-                        type: "paragraph",
-                        data: { text: `<i>Published on ${new Date().toLocaleDateString()}</i>` }
-                    },
-                    {
-                        type: "paragraph",
-                        data: { text: "Start your blog post with an engaging opening that hooks your readers and makes them want to continue reading..." }
-                    },
-                    {
-                        type: "header",
-                        data: { text: "Main Content", level: 2 }
-                    },
-                    {
-                        type: "paragraph",
-                        data: { text: "Develop your main ideas here with compelling stories, insights, and valuable information for your audience..." }
-                    },
-                    {
-                        type: "quote",
-                        data: { text: "Remember to include engaging quotes or key takeaways that readers can share.", caption: "Pro Tip" }
-                    },
-                    {
-                        type: "header",
-                        data: { text: "Conclusion", level: 2 }
-                    },
-                    {
-                        type: "paragraph",
-                        data: { text: "Wrap up with a strong conclusion and clear call to action..." }
-                    }
-                ]
-            },
-            article: {
-                blocks: [
-                    {
-                        type: "header",
-                        data: { text: "Breaking News: Article Headline", level: 1 }
-                    },
-                    {
-                        type: "paragraph",
-                        data: { text: `<b>By Reporter Name</b> - ${new Date().toLocaleDateString()}` }
-                    },
-                    {
-                        type: "paragraph",
-                        data: { text: "<b>Lead:</b> A compelling opening paragraph that summarizes the key points of your news story and answers the basic who, what, when, where, and why questions..." }
-                    },
-                    {
-                        type: "delimiter"
-                    },
-                    {
-                        type: "paragraph",
-                        data: { text: "The body of your article continues here with detailed information, quotes from sources, and additional context..." }
-                    },
-                    {
-                        type: "quote",
-                        data: { text: "Include relevant quotes from key sources or stakeholders.", caption: "Source Name" }
-                    }
-                ]
-            },
-            newsletter: {
-                blocks: [
-                    {
-                        type: "header",
-                        data: { text: "📧 Newsletter Title", level: 1 }
-                    },
-                    {
-                        type: "paragraph",
-                        data: { text: `<b>Issue #1 - ${new Date().toLocaleDateString()}</b>` }
-                    },
-                    {
-                        type: "header",
-                        data: { text: "📰 Top Stories", level: 2 }
-                    },
-                    {
-                        type: "list",
-                        data: {
-                            style: "unordered",
-                            items: [
-                                "Important news item #1",
-                                "Key update #2",
-                                "Featured announcement #3"
-                            ]
-                        }
-                    },
-                    {
-                        type: "header",
-                        data: { text: "🔥 Featured Content", level: 2 }
-                    },
-                    {
-                        type: "paragraph",
-                        data: { text: "Showcase your best content, resources, or products here..." }
-                    },
-                    {
-                        type: "header",
-                        data: { text: "📅 Upcoming Events", level: 2 }
-                    },
-                    {
-                        type: "table",
-                        data: {
-                            content: [
-                                ["Event", "Date", "Location"],
-                                ["Conference 2024", "March 15", "Virtual"],
-                                ["Workshop", "March 22", "New York"]
-                            ]
-                        }
-                    }
-                ]
-            },
-            documentation: {
-                blocks: [
-                    {
-                        type: "header",
-                        data: { text: "Documentation Title", level: 1 }
-                    },
-                    {
-                        type: "paragraph",
-                        data: { text: "Brief overview of what this documentation covers..." }
-                    },
-                    {
-                        type: "header",
-                        data: { text: "Table of Contents", level: 2 }
-                    },
-                    {
-                        type: "list",
-                        data: {
-                            style: "ordered",
-                            items: [
-                                "Getting Started",
-                                "Installation",
-                                "Configuration",
-                                "Usage Examples",
-                                "Troubleshooting"
-                            ]
-                        }
-                    },
-                    {
-                        type: "header",
-                        data: { text: "Getting Started", level: 2 }
-                    },
-                    {
-                        type: "paragraph",
-                        data: { text: "Step-by-step instructions to get started..." }
-                    },
-                    {
-                        type: "code",
-                        data: { code: "// Example code snippet\nconsole.log('Hello, World!');" }
-                    },
-                    {
-                        type: "warning",
-                        data: { title: "Important Note", message: "Always backup your data before making changes." }
-                    }
-                ]
-            },
-            tutorial: {
-                blocks: [
-                    {
-                        type: "header",
-                        data: { text: "🎓 How to: Tutorial Title", level: 1 }
-                    },
-                    {
-                        type: "paragraph",
-                        data: { text: "In this tutorial, you'll learn how to..." }
-                    },
-                    {
-                        type: "header",
-                        data: { text: "What You'll Need", level: 2 }
-                    },
-                    {
-                        type: "checklist",
-                        data: {
-                            items: [
-                                { text: "Prerequisite #1", checked: false },
-                                { text: "Prerequisite #2", checked: false },
-                                { text: "Prerequisite #3", checked: false }
-                            ]
-                        }
-                    },
-                    {
-                        type: "header",
-                        data: { text: "Step 1: Getting Started", level: 2 }
-                    },
-                    {
-                        type: "paragraph",
-                        data: { text: "Detailed instructions for the first step..." }
-                    },
-                    {
-                        type: "header",
-                        data: { text: "Step 2: Next Action", level: 2 }
-                    },
-                    {
-                        type: "paragraph",
-                        data: { text: "Continue with the next step..." }
-                    },
-                    {
-                        type: "quote",
-                        data: { text: "Pro tip: Include helpful hints and best practices throughout your tutorial.", caption: "Tutorial Tip" }
-                    }
-                ]
-            },
-            report: {
-                blocks: [
-                    {
-                        type: "header",
-                        data: { text: "Executive Report", level: 1 }
-                    },
-                    {
-                        type: "paragraph",
-                        data: { text: `<b>Report Date:</b> ${new Date().toLocaleDateString()}<br><b>Prepared by:</b> [Your Name]` }
-                    },
-                    {
-                        type: "header",
-                        data: { text: "Executive Summary", level: 2 }
-                    },
-                    {
-                        type: "paragraph",
-                        data: { text: "Brief overview of key findings, conclusions, and recommendations..." }
-                    },
-                    {
-                        type: "header",
-                        data: { text: "Key Findings", level: 2 }
-                    },
-                    {
-                        type: "list",
-                        data: {
-                            style: "ordered",
-                            items: [
-                                "Finding #1 with supporting data",
-                                "Finding #2 with analysis",
-                                "Finding #3 with implications"
-                            ]
-                        }
-                    },
-                    {
-                        type: "header",
-                        data: { text: "Recommendations", level: 2 }
-                    },
-                    {
-                        type: "table",
-                        data: {
-                            content: [
-                                ["Recommendation", "Priority", "Timeline"],
-                                ["Action Item 1", "High", "Q1 2024"],
-                                ["Action Item 2", "Medium", "Q2 2024"]
-                            ]
-                        }
-                    }
-                ]
-            }
+            blog: `<h1>Blog Post Title</h1>
+                <p><em>Published on ${new Date().toLocaleDateString()}</em></p>
+                <p>Start your blog post with an engaging opening...</p>
+                <h2>Main Content</h2>
+                <p>Develop your ideas here...</p>
+                <h2>Conclusion</h2>
+                <p>Wrap up with a strong conclusion...</p>`,
+            
+            article: `<h1>Article Headline</h1>
+                <p><strong>By Author Name</strong> - ${new Date().toLocaleDateString()}</p>
+                <p><strong>Lead:</strong> A compelling opening paragraph...</p>
+                <p>The body of your article continues here...</p>`,
+            
+            newsletter: `<h1>📧 Newsletter Title</h1>
+                <p><strong>Issue #1 - ${new Date().toLocaleDateString()}</strong></p>
+                <h2>📰 Top Stories</h2>
+                <ul><li>Important news item #1</li><li>Key update #2</li></ul>
+                <h2>🔥 Featured Content</h2>
+                <p>Showcase your best content here...</p>`,
+            
+            docs: `<h1>Documentation Title</h1>
+                <h2>Overview</h2>
+                <p>Brief overview of what this covers...</p>
+                <h2>Getting Started</h2>
+                <ol><li>Step one</li><li>Step two</li><li>Step three</li></ol>`
         };
 
         if (templates[templateName]) {
-            await this.editor.clear();
-            await this.editor.render(templates[templateName]);
-            this.updateStats();
+            if (this.useSimpleEditor && this.simpleEditor) {
+                this.simpleEditor.innerHTML = templates[templateName];
+                this.updateStats();
+            } else if (this.editor) {
+                // For Editor.js, we'd need to convert HTML to blocks
+                // For now, just show a message
+                this.showStatus('Template loaded in simple mode');
+            }
         }
     }
 
     async exportContent(format) {
-        if (!this.editor) return;
+        let content = '';
 
-        try {
-            const data = await this.editor.save();
-            const includeStyles = this.querySelector('#include-styles').checked;
-            const includeMeta = this.querySelector('#include-metadata').checked;
-            const minify = this.querySelector('#minify-output').checked;
-
-            switch (format) {
-                case 'json':
-                    const jsonOutput = minify ? JSON.stringify(data) : JSON.stringify(data, null, 2);
-                    this.downloadFile(jsonOutput, 'content.json', 'application/json');
-                    break;
-                case 'html':
-                    const htmlOutput = await this.convertToHTML(data, includeStyles, includeMeta);
-                    this.downloadFile(htmlOutput, 'content.html', 'text/html');
-                    break;
-                case 'markdown':
-                    const markdownOutput = await this.convertToMarkdown(data);
-                    this.downloadFile(markdownOutput, 'content.md', 'text/markdown');
-                    break;
-                case 'text':
-                    const textOutput = await this.convertToText(data);
-                    this.downloadFile(textOutput, 'content.txt', 'text/plain');
-                    break;
-                case 'pdf':
-                    await this.exportToPDF(data);
-                    break;
-                case 'copy':
-                    const htmlForCopy = await this.convertToHTML(data, includeStyles, false);
-                    this.copyToClipboard(htmlForCopy);
-                    break;
+        if (this.useSimpleEditor && this.simpleEditor) {
+            content = this.simpleEditor.innerHTML;
+        } else if (this.editor) {
+            try {
+                const data = await this.editor.save();
+                content = JSON.stringify(data, null, 2);
+            } catch (error) {
+                console.error('Export error:', error);
+                this.showStatus('Export failed', 'error');
+                return;
             }
-
-            this.showStatus(`Exported as ${format.toUpperCase()}`, 'success');
-        } catch (error) {
-            console.error('Export error:', error);
-            this.showStatus('Export failed', 'error');
         }
+
+        switch (format) {
+            case 'html':
+                this.downloadFile(this.generateHTML(content), 'content.html', 'text/html');
+                break;
+            case 'markdown':
+                this.downloadFile(this.htmlToMarkdown(content), 'content.md', 'text/markdown');
+                break;
+            case 'text':
+                this.downloadFile(this.stripHTML(content), 'content.txt', 'text/plain');
+                break;
+            case 'json':
+                this.downloadFile(content, 'content.json', 'application/json');
+                break;
+            case 'copy':
+                this.copyToClipboard(content);
+                break;
+            case 'print':
+                this.printContent(content);
+                break;
+        }
+
+        this.showStatus(`Exported as ${format.toUpperCase()}`, 'success');
     }
 
-    async convertToHTML(data, includeStyles = true, includeMeta = true) {
-        let html = '';
-        
-        if (includeMeta) {
-            html += '<!DOCTYPE html>\n<html lang="en">\n<head>\n';
-            html += '<meta charset="UTF-8">\n';
-            html += '<meta name="viewport" content="width=device-width, initial-scale=1.0">\n';
-            html += '<title>Exported Content</title>\n';
-            
-            if (includeStyles) {
-                html += '<style>\n';
-                html += 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px; color: #333; }\n';
-                html += 'h1, h2, h3, h4, h5, h6 { color: #2c3e50; margin-top: 2em; margin-bottom: 0.5em; }\n';
-                html += 'h1 { font-size: 2.5em; }\n';
-                html += 'h2 { font-size: 2em; }\n';
-                html += 'h3 { font-size: 1.5em; }\n';
-                html += 'p { margin: 1em 0; }\n';
-                html += 'blockquote { margin: 1em 0; padding: 1em; background: #f8f9fa; border-left: 4px solid #667eea; font-style: italic; }\n';
-                html += 'code { background: #f1f3f4; padding: 0.2em 0.4em; border-radius: 3px; font-family: "Monaco", "Courier New", monospace; }\n';
-                html += 'pre { background: #f1f3f4; padding: 1em; border-radius: 5px; overflow-x: auto; }\n';
-                html += 'table { border-collapse: collapse; width: 100%; margin: 1em 0; }\n';
-                html += 'th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }\n';
-                html += 'th { background-color: #f8f9fa; font-weight: 600; }\n';
-                html += 'ul, ol { margin: 1em 0; padding-left: 2em; }\n';
-                html += 'li { margin: 0.5em 0; }\n';
-                html += '.warning { background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 5px; padding: 1em; margin: 1em 0; }\n';
-                html += '.warning-title { font-weight: bold; color: #856404; }\n';
-                html += 'img { max-width: 100%; height: auto; border-radius: 5px; }\n';
-                html += '</style>\n';
-            }
-            
-            html += `<meta name="generator" content="Advanced Rich Editor">\n`;
-            html += `<meta name="exported" content="${new Date().toISOString()}">\n`;
-            html += '</head>\n<body>\n';
-        }
-
-        for (const block of data.blocks) {
-            html += this.blockToHTML(block) + '\n';
-        }
-
-        if (includeMeta) {
-            html += '\n</body>\n</html>';
-        }
-
-        return html;
+    generateHTML(content) {
+        return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exported Content</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px; }
+        h1, h2, h3, h4, h5, h6 { color: #333; margin-top: 2em; }
+        table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+        td, th { border: 1px solid #ddd; padding: 8px; }
+    </style>
+</head>
+<body>
+    ${content}
+</body>
+</html>`;
     }
 
-    blockToHTML(block) {
-        switch (block.type) {
-            case 'header':
-                return `<h${block.data.level}>${block.data.text}</h${block.data.level}>`;
-            case 'paragraph':
-                return `<p>${block.data.text}</p>`;
-            case 'list':
-                const tag = block.data.style === 'ordered' ? 'ol' : 'ul';
-                const items = block.data.items.map(item => `<li>${item}</li>`).join('');
-                return `<${tag}>${items}</${tag}>`;
-            case 'checklist':
-                const checkItems = block.data.items.map(item => 
-                    `<li><input type="checkbox" ${item.checked ? 'checked' : ''}> ${item.text}</li>`
-                ).join('');
-                return `<ul style="list-style: none;">${checkItems}</ul>`;
-            case 'quote':
-                return `<blockquote><p>${block.data.text}</p>${block.data.caption ? `<footer>— ${block.data.caption}</footer>` : ''}</blockquote>`;
-            case 'code':
-                return `<pre><code>${this.escapeHtml(block.data.code)}</code></pre>`;
-            case 'warning':
-                return `<div class="warning"><div class="warning-title">${block.data.title}</div><p>${block.data.message}</p></div>`;
-            case 'delimiter':
-                return '<hr>';
-            case 'table':
-                if (!block.data.content || !block.data.content.length) return '';
-                const rows = block.data.content.map((row, index) => {
-                    const cells = row.map(cell => index === 0 ? `<th>${cell}</th>` : `<td>${cell}</td>`).join('');
-                    return `<tr>${cells}</tr>`;
-                }).join('');
-                return `<table>${rows}</table>`;
-            case 'image':
-                return `<img src="${block.data.file.url}" alt="${block.data.caption || ''}" title="${block.data.caption || ''}">`;
-            case 'linkTool':
-                return `<p><a href="${block.data.link}" target="_blank">${block.data.meta.title || block.data.link}</a></p>`;
-            case 'embed':
-                return `<div class="embed">${block.data.embed || ''}</div>`;
-            case 'raw':
-                return block.data.html;
-            default:
-                return `<p>${block.data.text || ''}</p>`;
-        }
-    }
-
-    async convertToMarkdown(data) {
-        let markdown = '';
-
-        for (const block of data.blocks) {
-            markdown += this.blockToMarkdown(block) + '\n\n';
-        }
-
+    htmlToMarkdown(html) {
+        let markdown = html;
+        markdown = markdown.replace(/<h([1-6])[^>]*>(.*?)<\/h[1-6]>/gi, (match, level, text) => '#'.repeat(parseInt(level)) + ' ' + text + '\n\n');
+        markdown = markdown.replace(/<strong[^>]*>(.*?)<\/strong>/gi, '**$1**');
+        markdown = markdown.replace(/<em[^>]*>(.*?)<\/em>/gi, '*$1*');
+        markdown = markdown.replace(/<p[^>]*>(.*?)<\/p>/gi, '$1\n\n');
+        markdown = markdown.replace(/<br[^>]*>/gi, '\n');
+        markdown = markdown.replace(/<[^>]*>/g, '');
         return markdown.trim();
     }
 
-    blockToMarkdown(block) {
-        switch (block.type) {
-            case 'header':
-                return '#'.repeat(block.data.level) + ' ' + this.stripHTML(block.data.text);
-            case 'paragraph':
-                return this.stripHTML(block.data.text);
-            case 'list':
-                const prefix = block.data.style === 'ordered' ? '1. ' : '- ';
-                return block.data.items.map(item => prefix + this.stripHTML(item)).join('\n');
-            case 'checklist':
-                return block.data.items.map(item => 
-                    `- [${item.checked ? 'x' : ' '}] ${this.stripHTML(item.text)}`
-                ).join('\n');
-            case 'quote':
-                const quote = `> ${this.stripHTML(block.data.text)}`;
-                return block.data.caption ? quote + `\n> \n> — ${block.data.caption}` : quote;
-            case 'code':
-                return '```\n' + block.data.code + '\n```';
-            case 'warning':
-                return `> ⚠️ **${block.data.title}**\n> \n> ${block.data.message}`;
-            case 'delimiter':
-                return '---';
-            case 'table':
-                if (!block.data.content || !block.data.content.length) return '';
-                const header = '| ' + block.data.content[0].join(' | ') + ' |';
-                const separator = '| ' + block.data.content[0].map(() => '---').join(' | ') + ' |';
-                const rows = block.data.content.slice(1).map(row => 
-                    '| ' + row.join(' | ') + ' |'
-                ).join('\n');
-                return header + '\n' + separator + '\n' + rows;
-            case 'image':
-                return `![${block.data.caption || ''}](${block.data.file.url})`;
-            case 'linkTool':
-                return `[${block.data.meta.title || block.data.link}](${block.data.link})`;
-            case 'embed':
-                return `[Embedded Content](${block.data.source})`;
-            case 'raw':
-                return block.data.html;
-            default:
-                return block.data.text || '';
-        }
-    }
-
-    async convertToText(data) {
+    updateStats() {
         let text = '';
-
-        for (const block of data.blocks) {
-            text += this.blockToText(block) + '\n\n';
+        
+        if (this.useSimpleEditor && this.simpleEditor) {
+            text = this.simpleEditor.textContent || '';
+            this.querySelector('#editor-mode-status').textContent = 'Mode: Simple Editor';
+        } else if (this.editor) {
+            // For Editor.js, we'd need to get text from blocks
+            this.querySelector('#editor-mode-status').textContent = 'Mode: Editor.js';
+        } else {
+            this.querySelector('#editor-mode-status').textContent = 'Mode: Loading...';
+            return;
         }
 
-        return text.trim();
+        const words = text.trim().split(/\s+/).filter(word => word.length > 0).length;
+        const chars = text.length;
+
+        this.querySelector('#word-count').textContent = `Words: ${words}`;
+        this.querySelector('#char-count').textContent = `Characters: ${chars}`;
     }
 
-    blockToText(block) {
-        switch (block.type) {
-            case 'header':
-                return this.stripHTML(block.data.text).toUpperCase();
-            case 'paragraph':
-                return this.stripHTML(block.data.text);
-            case 'list':
-                return block.data.items.map((item, index) => {
-                    const prefix = block.data.style === 'ordered' ? `${index + 1}. ` : '• ';
-                    return prefix + this.stripHTML(item);
-                }).join('\n');
-            case 'checklist':
-                return block.data.items.map(item => 
-                    `[${item.checked ? 'X' : ' '}] ${this.stripHTML(item.text)}`
-                ).join('\n');
-            case 'quote':
-                const quote = `"${this.stripHTML(block.data.text)}"`;
-                return block.data.caption ? quote + ` — ${block.data.caption}` : quote;
-            case 'code':
-                return block.data.code;
-            case 'warning':
-                return `⚠️ ${block.data.title}: ${block.data.message}`;
-            case 'delimiter':
-                return '─'.repeat(50);
-            case 'table':
-                if (!block.data.content || !block.data.content.length) return '';
-                return block.data.content.map(row => row.join('\t')).join('\n');
-            case 'image':
-                return `[Image: ${block.data.caption || 'Untitled'}]`;
-            case 'linkTool':
-                return `${block.data.meta.title || 'Link'}: ${block.data.link}`;
-            case 'embed':
-                return `[Embedded Content: ${block.data.service || 'Unknown'}]`;
-            case 'raw':
-                return this.stripHTML(block.data.html);
-            default:
-                return this.stripHTML(block.data.text || '');
+    saveState() {
+        if (this.useSimpleEditor && this.simpleEditor) {
+            this.undoStack.push(this.simpleEditor.innerHTML);
+            if (this.undoStack.length > 50) {
+                this.undoStack.shift();
+            }
+            this.redoStack = [];
         }
     }
 
-    async exportToPDF(data) {
-        // Simple PDF export using browser's print functionality
-        const htmlContent = await this.convertToHTML(data, true, true);
-        const printWindow = window.open('', '_blank');
-        printWindow.document.write(htmlContent);
-        printWindow.document.close();
-        printWindow.print();
+    undo() {
+        if (this.useSimpleEditor && this.undoStack.length > 1) {
+            const current = this.undoStack.pop();
+            this.redoStack.push(current);
+            this.simpleEditor.innerHTML = this.undoStack[this.undoStack.length - 1];
+            this.updateStats();
+        }
     }
 
-    async updateStats() {
-        if (!this.editor) return;
-
-        try {
-            const data = await this.editor.save();
-            const blocks = data.blocks.length;
-            
-            let wordCount = 0;
-            let charCount = 0;
-
-            data.blocks.forEach(block => {
-                const text = this.blockToText(block);
-                const words = text.trim().split(/\s+/).filter(word => word.length > 0);
-                wordCount += words.length;
-                charCount += text.length;
-            });
-
-            this.querySelector('#block-count').textContent = `Blocks: ${blocks}`;
-            this.querySelector('#word-count').textContent = `Words: ${wordCount}`;
-            this.querySelector('#char-count').textContent = `Characters: ${charCount}`;
-        } catch (error) {
-            console.error('Error updating stats:', error);
+    redo() {
+        if (this.useSimpleEditor && this.redoStack.length > 0) {
+            const state = this.redoStack.pop();
+            this.undoStack.push(state);
+            this.simpleEditor.innerHTML = state;
+            this.updateStats();
         }
     }
 
     async saveContent() {
-        if (!this.editor) return;
-
-        try {
-            const data = await this.editor.save();
-            // In a real implementation, you would send this to your server
-            console.log('Content saved:', data);
-            this.showStatus('Content saved successfully', 'success');
-        } catch (error) {
-            console.error('Save error:', error);
-            this.showStatus('Failed to save content', 'error');
-        }
-    }
-
-    async autoSave() {
-        if (!this.autoSaveEnabled) return;
-        
-        clearTimeout(this.autoSaveTimeout);
-        this.autoSaveTimeout = setTimeout(() => {
-            this.saveContent();
-        }, parseInt(this.querySelector('#save-interval').value) * 1000);
+        this.showStatus('Content saved', 'success');
     }
 
     async clearContent() {
-        if (confirm('Are you sure you want to clear all content? This action cannot be undone.')) {
-            await this.editor.clear();
+        if (confirm('Clear all content?')) {
+            if (this.useSimpleEditor && this.simpleEditor) {
+                this.simpleEditor.innerHTML = '<p>Start writing...</p>';
+            } else if (this.editor) {
+                await this.editor.clear();
+            }
             this.updateStats();
-            this.showStatus('Content cleared', 'info');
         }
+    }
+
+    resetEditor() {
+        location.reload();
     }
 
     toggleTheme() {
@@ -1638,7 +1137,6 @@ class AdvancedRichEditor extends HTMLElement {
     setTheme(theme) {
         this.currentTheme = theme;
         this.querySelector('.are-container').classList.toggle('dark', theme === 'dark');
-        this.querySelector('#editor-theme').value = theme;
     }
 
     toggleFullscreen() {
@@ -1650,15 +1148,6 @@ class AdvancedRichEditor extends HTMLElement {
         } else {
             document.body.style.overflow = '';
         }
-    }
-
-    resetSettings() {
-        this.querySelector('#editor-theme').value = 'light';
-        this.querySelector('#auto-save').checked = true;
-        this.querySelector('#save-interval').value = '60';
-        this.setTheme('light');
-        this.autoSaveEnabled = true;
-        this.showStatus('Settings reset to default', 'info');
     }
 
     downloadFile(content, filename, mimeType) {
@@ -1676,28 +1165,30 @@ class AdvancedRichEditor extends HTMLElement {
     copyToClipboard(content) {
         if (navigator.clipboard) {
             navigator.clipboard.writeText(content).then(() => {
-                this.showStatus('Content copied to clipboard!', 'success');
+                this.showStatus('Copied to clipboard!');
             });
         } else {
-            // Fallback for older browsers
             const textArea = document.createElement('textarea');
             textArea.value = content;
             document.body.appendChild(textArea);
             textArea.select();
             document.execCommand('copy');
             document.body.removeChild(textArea);
-            this.showStatus('Content copied to clipboard!', 'success');
+            this.showStatus('Copied to clipboard!');
         }
     }
 
+    printContent(content) {
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(this.generateHTML(content));
+        printWindow.document.close();
+        printWindow.print();
+    }
+
     showStatus(message, type = 'info', duration = 3000) {
-        const statusElement = this.querySelector('#last-saved');
-        statusElement.textContent = message;
-        statusElement.className = type;
-        
+        this.querySelector('#last-saved').textContent = message;
         setTimeout(() => {
-            statusElement.textContent = 'Ready';
-            statusElement.className = '';
+            this.querySelector('#last-saved').textContent = 'Ready';
         }, duration);
     }
 
@@ -1705,17 +1196,6 @@ class AdvancedRichEditor extends HTMLElement {
         const tmp = document.createElement('div');
         tmp.innerHTML = html;
         return tmp.textContent || tmp.innerText || '';
-    }
-
-    escapeHtml(text) {
-        const map = {
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            '"': '&quot;',
-            "'": '&#039;'
-        };
-        return text.replace(/[&<>"']/g, m => map[m]);
     }
 }
 
