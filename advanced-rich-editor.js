@@ -1,1203 +1,941 @@
-// Custom Element: <advanced-rich-editor>
-// File: advanced-rich-editor.js
-// 
-// USAGE IN WIX:
-// 1. Upload this file to your server (HTTPS required for live sites)
-// 2. In Wix Editor: Add Elements > Embed & Social > Custom Element
-// 3. Choose Source: Server URL (paste your file URL)
-// 4. Tag Name: advanced-rich-editor (must match exactly)
-// 5. Save and publish
+/**
+ * Advanced Rich Content Editor - Wix Custom Element
+ * File: advanced-rich-editor.js
+ * Tag: <advanced-rich-editor>
+ */
 
 class AdvancedRichEditor extends HTMLElement {
     constructor() {
         super();
         this.editor = null;
-        this.isFullscreen = false;
+        this.editorData = null;
         this.currentTheme = 'light';
-        this.useSimpleEditor = false;
-        this.content = '';
-        this.undoStack = [];
-        this.redoStack = [];
     }
 
     connectedCallback() {
-        console.log('Advanced Rich Editor: Initializing...');
-        this.innerHTML = this.getHTML();
-        this.addStyles();
-        this.hideLoading();
-        this.initializeEditor();
-        this.setupEventListeners();
-    }
-
-    hideLoading() {
-        setTimeout(() => {
-            const loading = this.querySelector('#loading');
-            if (loading) {
-                loading.style.display = 'none';
-            }
-        }, 500);
-    }
-
-    async initializeEditor() {
-        console.log('Advanced Rich Editor: Starting initialization...');
-        
-        // Try to load Editor.js with timeout
-        try {
-            await Promise.race([
-                this.loadEditorJS(),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 10000))
-            ]);
-            console.log('Advanced Rich Editor: Editor.js loaded successfully');
-        } catch (error) {
-            console.warn('Advanced Rich Editor: Editor.js failed to load, using simple editor:', error);
-            this.useSimpleEditor = true;
-            this.initializeSimpleEditor();
-        }
-    }
-
-    async loadEditorJS() {
-        // Load Editor.js core only
-        if (typeof EditorJS === 'undefined') {
-            await this.loadScript('https://cdn.jsdelivr.net/npm/@editorjs/editorjs@latest');
-        }
-
-        // Wait a bit for the library to be ready
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        if (typeof EditorJS === 'undefined') {
-            throw new Error('EditorJS not available');
-        }
-
-        console.log('Advanced Rich Editor: Initializing Editor.js...');
-        
-        // Initialize with minimal configuration
-        this.editor = new EditorJS({
-            holder: 'editorjs',
-            placeholder: 'Start writing your content here...',
-            autofocus: true,
-            data: {
-                blocks: [
-                    {
-                        type: "paragraph",
-                        data: {
-                            text: "Welcome to Advanced Rich Editor! 🎉"
-                        }
-                    },
-                    {
-                        type: "paragraph",
-                        data: {
-                            text: "Start creating your content here. Use the toolbar above to add different types of content blocks."
-                        }
-                    },
-                    {
-                        type: "paragraph",
-                        data: {
-                            text: "Click the <b>+</b> button on the left to add new blocks, or use the tools in the sidebar!"
-                        }
-                    }
-                ]
-            },
-            onChange: () => {
-                this.updateStats();
-            },
-            onReady: () => {
-                console.log('Advanced Rich Editor: Editor.js ready');
-                this.updateStats();
-                this.showStatus('Editor ready!');
-            }
-        });
-    }
-
-    initializeSimpleEditor() {
-        console.log('Advanced Rich Editor: Initializing simple editor...');
-        const editorContainer = this.querySelector('#editorjs');
-        
-        editorContainer.innerHTML = `
-            <div class="simple-editor" contenteditable="true" spellcheck="true">
-                <h1>Welcome to Advanced Rich Editor! 🎉</h1>
-                <p>This is the simple editor mode. You can still create great content!</p>
-                <p>Features available:</p>
-                <ul>
-                    <li><strong>Bold text</strong> and <em>italic text</em></li>
-                    <li>Lists and headings</li>
-                    <li>Links and basic formatting</li>
-                    <li>Export to HTML, Markdown, and more</li>
-                </ul>
-                <p>Use the toolbar above to format your text!</p>
-            </div>
-        `;
-
-        this.simpleEditor = editorContainer.querySelector('.simple-editor');
-        this.simpleEditor.addEventListener('input', () => {
-            this.updateStats();
-            this.saveState();
-        });
-
-        this.simpleEditor.addEventListener('keydown', (e) => {
-            if (e.ctrlKey || e.metaKey) {
-                if (e.key === 'z' && !e.shiftKey) {
-                    e.preventDefault();
-                    this.undo();
-                } else if ((e.key === 'z' && e.shiftKey) || e.key === 'y') {
-                    e.preventDefault();
-                    this.redo();
-                }
-            }
-        });
-
-        this.updateStats();
-        this.saveState();
-        this.showStatus('Simple editor ready!');
-    }
-
-    loadScript(src) {
-        return new Promise((resolve, reject) => {
-            // Check if script is already loaded
-            if (document.querySelector(`script[src="${src}"]`)) {
-                resolve();
-                return;
-            }
-
-            const script = document.createElement('script');
-            script.src = src;
-            script.onload = () => {
-                console.log('Script loaded:', src);
-                resolve();
-            };
-            script.onerror = (error) => {
-                console.error('Script failed to load:', src, error);
-                reject(error);
-            };
-            document.head.appendChild(script);
-        });
-    }
-
-    getHTML() {
-        return `
-            <div class="are-container" id="are-main">
-                <div class="are-header">
-                    <div class="are-title">🎨 Advanced Rich Editor</div>
-                    <div class="are-header-controls">
-                        <button class="are-btn" id="theme-toggle" title="Toggle Theme">🌗</button>
-                        <button class="are-btn" id="fullscreen-toggle" title="Fullscreen">⛶</button>
-                        <button class="are-btn" id="save-btn" title="Save">💾</button>
-                        <button class="are-btn" id="clear-btn" title="Clear All">🗑️</button>
+        this.innerHTML = `
+            <div class="advanced-editor-container">
+                <div class="editor-toolbar">
+                    <div class="toolbar-section">
+                        <button class="toolbar-btn" id="save-btn" title="Save Content">
+                            💾 Save
+                        </button>
+                        <button class="toolbar-btn" id="load-btn" title="Load Content">
+                            📁 Load
+                        </button>
+                        <button class="toolbar-btn" id="clear-btn" title="Clear Editor">
+                            🗑️ Clear
+                        </button>
                     </div>
-                </div>
-
-                <div class="are-toolbar">
-                    <div class="are-group">
-                        <button class="are-tool-btn" data-command="bold" title="Bold">𝐁</button>
-                        <button class="are-tool-btn" data-command="italic" title="Italic">𝐼</button>
-                        <button class="are-tool-btn" data-command="underline" title="Underline">U̲</button>
-                        <button class="are-tool-btn" data-command="strikethrough" title="Strike">S̶</button>
-                    </div>
-                    <div class="are-group">
-                        <select class="are-select" id="format-select">
-                            <option value="">Normal</option>
-                            <option value="h1">Heading 1</option>
-                            <option value="h2">Heading 2</option>
-                            <option value="h3">Heading 3</option>
-                            <option value="h4">Heading 4</option>
+                    
+                    <div class="toolbar-section">
+                        <label for="export-format">Export as:</label>
+                        <select id="export-format">
+                            <option value="json">JSON</option>
+                            <option value="html">HTML</option>
+                            <option value="markdown">Markdown</option>
+                            <option value="plain">Plain Text</option>
                         </select>
+                        <button class="toolbar-btn" id="export-btn">📤 Export</button>
                     </div>
-                    <div class="are-group">
-                        <button class="are-tool-btn" data-command="insertUnorderedList" title="Bullet List">•</button>
-                        <button class="are-tool-btn" data-command="insertOrderedList" title="Numbered List">1.</button>
-                        <button class="are-tool-btn" data-command="justifyLeft" title="Left">⬅</button>
-                        <button class="are-tool-btn" data-command="justifyCenter" title="Center">↔</button>
-                        <button class="are-tool-btn" data-command="justifyRight" title="Right">➡</button>
+                    
+                    <div class="toolbar-section">
+                        <button class="toolbar-btn" id="theme-btn" title="Toggle Theme">
+                            🌓 Theme
+                        </button>
+                        <button class="toolbar-btn" id="fullscreen-btn" title="Fullscreen">
+                            ⛶ Full
+                        </button>
                     </div>
-                    <div class="are-group">
-                        <button class="are-tool-btn" id="insert-link" title="Link">🔗</button>
-                        <button class="are-tool-btn" id="insert-image" title="Image">🖼️</button>
-                        <button class="are-tool-btn" id="insert-table" title="Table">📊</button>
-                        <button class="are-tool-btn" id="insert-hr" title="Divider">➖</button>
-                    </div>
-                    <div class="are-group">
-                        <button class="are-tool-btn" data-command="undo" title="Undo">↶</button>
-                        <button class="are-tool-btn" data-command="redo" title="Redo">↷</button>
-                    </div>
-                </div>
-
-                <div class="are-content">
-                    <div class="are-sidebar">
-                        <div class="are-tab active" data-panel="templates" title="Templates">📄</div>
-                        <div class="are-tab" data-panel="blocks" title="Blocks">🧩</div>
-                        <div class="are-tab" data-panel="export" title="Export">📤</div>
-                        <div class="are-tab" data-panel="settings" title="Settings">⚙️</div>
-                    </div>
-
-                    <div class="are-editor-area">
-                        <div id="editorjs" class="are-editor"></div>
-                    </div>
-
-                    <div class="are-panel">
-                        <!-- Templates Panel -->
-                        <div class="are-panel-content active" id="templates-panel">
-                            <h3>📄 Templates</h3>
-                            <div class="are-template-grid">
-                                <div class="are-template" data-template="blog">
-                                    <div class="template-icon">📝</div>
-                                    <div class="template-name">Blog Post</div>
-                                </div>
-                                <div class="are-template" data-template="article">
-                                    <div class="template-icon">📰</div>
-                                    <div class="template-name">Article</div>
-                                </div>
-                                <div class="are-template" data-template="newsletter">
-                                    <div class="template-icon">📧</div>
-                                    <div class="template-name">Newsletter</div>
-                                </div>
-                                <div class="are-template" data-template="docs">
-                                    <div class="template-icon">📋</div>
-                                    <div class="template-name">Documentation</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Blocks Panel -->
-                        <div class="are-panel-content" id="blocks-panel">
-                            <h3>🧩 Content Blocks</h3>
-                            <div class="are-blocks-grid">
-                                <div class="are-block" data-block="header">
-                                    <div class="block-icon">📰</div>
-                                    <div class="block-name">Header</div>
-                                </div>
-                                <div class="are-block" data-block="paragraph">
-                                    <div class="block-icon">📝</div>
-                                    <div class="block-name">Paragraph</div>
-                                </div>
-                                <div class="are-block" data-block="list">
-                                    <div class="block-icon">📋</div>
-                                    <div class="block-name">List</div>
-                                </div>
-                                <div class="are-block" data-block="quote">
-                                    <div class="block-icon">💬</div>
-                                    <div class="block-name">Quote</div>
-                                </div>
-                                <div class="are-block" data-block="code">
-                                    <div class="block-icon">💻</div>
-                                    <div class="block-name">Code</div>
-                                </div>
-                                <div class="are-block" data-block="image">
-                                    <div class="block-icon">🖼️</div>
-                                    <div class="block-name">Image</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Export Panel -->
-                        <div class="are-panel-content" id="export-panel">
-                            <h3>📤 Export Content</h3>
-                            <div class="are-export-grid">
-                                <button class="are-export-btn" data-format="html">
-                                    <div class="export-icon">📄</div>
-                                    <div class="export-name">HTML</div>
-                                </button>
-                                <button class="are-export-btn" data-format="markdown">
-                                    <div class="export-icon">📝</div>
-                                    <div class="export-name">Markdown</div>
-                                </button>
-                                <button class="are-export-btn" data-format="text">
-                                    <div class="export-icon">📋</div>
-                                    <div class="export-name">Plain Text</div>
-                                </button>
-                                <button class="are-export-btn" data-format="json">
-                                    <div class="export-icon">🔧</div>
-                                    <div class="export-name">JSON</div>
-                                </button>
-                                <button class="are-export-btn" data-format="copy">
-                                    <div class="export-icon">📋</div>
-                                    <div class="export-name">Copy</div>
-                                </button>
-                                <button class="are-export-btn" data-format="print">
-                                    <div class="export-icon">🖨️</div>
-                                    <div class="export-name">Print</div>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Settings Panel -->
-                        <div class="are-panel-content" id="settings-panel">
-                            <h3>⚙️ Settings</h3>
-                            <div class="are-settings">
-                                <div class="setting-group">
-                                    <label>Editor Mode</label>
-                                    <select id="editor-mode" class="are-select">
-                                        <option value="auto">Auto (Try Editor.js)</option>
-                                        <option value="simple">Simple Editor</option>
-                                    </select>
-                                </div>
-                                <div class="setting-group">
-                                    <label>Theme</label>
-                                    <select id="editor-theme" class="are-select">
-                                        <option value="light">Light</option>
-                                        <option value="dark">Dark</option>
-                                        <option value="auto">Auto</option>
-                                    </select>
-                                </div>
-                                <div class="setting-group">
-                                    <button class="are-btn-primary" id="reset-editor">Reset Editor</button>
-                                </div>
-                            </div>
-                        </div>
+                    
+                    <div class="toolbar-section">
+                        <input type="file" id="import-file" accept=".json,.html,.md,.txt" style="display: none">
+                        <button class="toolbar-btn" id="import-btn" title="Import File">
+                            📥 Import
+                        </button>
                     </div>
                 </div>
-
-                <div class="are-status-bar">
-                    <span id="editor-mode-status">Mode: Loading...</span>
+                
+                <div class="editor-wrapper">
+                    <div id="advanced-editor" class="editor-area"></div>
+                </div>
+                
+                <div class="editor-status">
                     <span id="word-count">Words: 0</span>
                     <span id="char-count">Characters: 0</span>
-                    <span id="last-saved">Ready</span>
-                </div>
-
-                <div class="are-loading" id="loading">
-                    <div class="loading-spinner"></div>
-                    <div class="loading-text">Loading Editor...</div>
+                    <span id="block-count">Blocks: 0</span>
                 </div>
             </div>
         `;
+
+        this.addStyles();
+        this.loadEditorJS();
     }
 
     addStyles() {
         const style = document.createElement('style');
         style.textContent = `
-            .are-container {
+            .advanced-editor-container {
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                max-width: 1200px;
+                max-width: 100%;
                 margin: 0 auto;
-                background: linear-gradient(145deg, #f0f0f3, #e6e6e9);
-                border-radius: 20px;
-                box-shadow: 20px 20px 60px #d1d1d4, -20px -20px 60px #ffffff;
-                padding: 20px;
-                min-height: 600px;
+                border: 1px solid #e1e5e9;
+                border-radius: 8px;
+                background: #fff;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
                 transition: all 0.3s ease;
+            }
+
+            .advanced-editor-container.dark {
+                background: #1a1a1a;
+                border-color: #333;
+                color: #fff;
+            }
+
+            .editor-toolbar {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+                padding: 12px 16px;
+                background: #f8f9fa;
+                border-bottom: 1px solid #e1e5e9;
+                border-radius: 8px 8px 0 0;
+                align-items: center;
+            }
+
+            .advanced-editor-container.dark .editor-toolbar {
+                background: #2d2d2d;
+                border-color: #444;
+            }
+
+            .toolbar-section {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+            .toolbar-btn {
+                padding: 6px 12px;
+                border: 1px solid #ddd;
+                background: #fff;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 12px;
+                transition: all 0.2s ease;
+            }
+
+            .toolbar-btn:hover {
+                background: #f0f0f0;
+                border-color: #999;
+            }
+
+            .advanced-editor-container.dark .toolbar-btn {
+                background: #444;
+                border-color: #666;
+                color: #fff;
+            }
+
+            .advanced-editor-container.dark .toolbar-btn:hover {
+                background: #555;
+            }
+
+            #export-format {
+                padding: 4px 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                background: #fff;
+            }
+
+            .advanced-editor-container.dark #export-format {
+                background: #444;
+                border-color: #666;
+                color: #fff;
+            }
+
+            .editor-wrapper {
                 position: relative;
+                min-height: 400px;
+                padding: 20px;
             }
 
-            .are-container.dark {
-                background: linear-gradient(145deg, #2c2c2c, #1a1a1a);
-                box-shadow: 20px 20px 60px #0f0f0f, -20px -20px 60px #3a3a3a;
-                color: #e0e0e0;
+            .editor-area {
+                min-height: 350px;
+                outline: none;
             }
 
-            .are-container.fullscreen {
+            .editor-status {
+                display: flex;
+                justify-content: space-between;
+                padding: 8px 16px;
+                background: #f8f9fa;
+                border-top: 1px solid #e1e5e9;
+                font-size: 12px;
+                color: #666;
+                border-radius: 0 0 8px 8px;
+            }
+
+            .advanced-editor-container.dark .editor-status {
+                background: #2d2d2d;
+                border-color: #444;
+                color: #ccc;
+            }
+
+            .fullscreen {
                 position: fixed;
                 top: 0;
                 left: 0;
                 width: 100vw;
                 height: 100vh;
-                max-width: none;
-                border-radius: 0;
                 z-index: 9999;
+                border-radius: 0;
             }
 
-            .are-loading {
-                position: absolute;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: inherit;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                border-radius: 20px;
-                z-index: 1000;
-            }
-
-            .loading-spinner {
-                width: 40px;
-                height: 40px;
-                border: 4px solid #e0e0e0;
-                border-top: 4px solid #667eea;
-                border-radius: 50%;
-                animation: spin 1s linear infinite;
-                margin-bottom: 20px;
-            }
-
-            @keyframes spin {
-                0% { transform: rotate(0deg); }
-                100% { transform: rotate(360deg); }
-            }
-
-            .loading-text {
-                font-size: 16px;
-                color: #667eea;
-                font-weight: 500;
-            }
-
-            .are-header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin-bottom: 20px;
-                padding: 15px 20px;
-                background: linear-gradient(145deg, #f0f0f3, #e6e6e9);
-                border-radius: 15px;
-                box-shadow: inset 5px 5px 10px #d1d1d4, inset -5px -5px 10px #ffffff;
-            }
-
-            .are-container.dark .are-header {
-                background: linear-gradient(145deg, #2c2c2c, #1a1a1a);
-                box-shadow: inset 5px 5px 10px #0f0f0f, inset -5px -5px 10px #3a3a3a;
-            }
-
-            .are-title {
-                font-size: 24px;
-                font-weight: 600;
-                background: linear-gradient(45deg, #667eea, #764ba2);
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
-                background-clip: text;
-            }
-
-            .are-header-controls {
-                display: flex;
-                gap: 10px;
-            }
-
-            .are-btn, .are-tool-btn, .are-btn-primary {
-                background: linear-gradient(145deg, #f0f0f3, #e6e6e9);
-                border: none;
-                border-radius: 12px;
-                padding: 10px 15px;
-                cursor: pointer;
-                transition: all 0.2s ease;
-                box-shadow: 5px 5px 10px #d1d1d4, -5px -5px 10px #ffffff;
-                font-size: 14px;
-                color: #333;
-                min-width: 40px;
-            }
-
-            .are-container.dark .are-btn,
-            .are-container.dark .are-tool-btn,
-            .are-container.dark .are-btn-primary {
-                background: linear-gradient(145deg, #2c2c2c, #1a1a1a);
-                box-shadow: 5px 5px 10px #0f0f0f, -5px -5px 10px #3a3a3a;
-                color: #e0e0e0;
-            }
-
-            .are-btn:hover, .are-tool-btn:hover {
-                box-shadow: inset 2px 2px 5px #d1d1d4, inset -2px -2px 5px #ffffff;
-                transform: translateY(1px);
-            }
-
-            .are-container.dark .are-btn:hover,
-            .are-container.dark .are-tool-btn:hover {
-                box-shadow: inset 2px 2px 5px #0f0f0f, inset -2px -2px 5px #3a3a3a;
-            }
-
-            .are-btn-primary {
-                background: linear-gradient(145deg, #667eea, #764ba2);
-                color: white;
-                box-shadow: 5px 5px 15px rgba(102, 126, 234, 0.3);
-            }
-
-            .are-toolbar {
-                display: flex;
-                flex-wrap: wrap;
-                gap: 15px;
-                margin-bottom: 20px;
-                padding: 15px;
-                background: linear-gradient(145deg, #f0f0f3, #e6e6e9);
-                border-radius: 15px;
-                box-shadow: inset 3px 3px 8px #d1d1d4, inset -3px -3px 8px #ffffff;
-            }
-
-            .are-container.dark .are-toolbar {
-                background: linear-gradient(145deg, #2c2c2c, #1a1a1a);
-                box-shadow: inset 3px 3px 8px #0f0f0f, inset -3px -3px 8px #3a3a3a;
-            }
-
-            .are-group {
-                display: flex;
-                gap: 5px;
-                align-items: center;
-                padding: 5px;
-                background: linear-gradient(145deg, #e6e6e9, #f0f0f3);
-                border-radius: 10px;
-                box-shadow: 2px 2px 5px #d1d1d4, -2px -2px 5px #ffffff;
-            }
-
-            .are-container.dark .are-group {
-                background: linear-gradient(145deg, #1a1a1a, #2c2c2c);
-                box-shadow: 2px 2px 5px #0f0f0f, -2px -2px 5px #3a3a3a;
-            }
-
-            .are-select {
-                background: linear-gradient(145deg, #f0f0f3, #e6e6e9);
-                border: none;
-                border-radius: 8px;
-                padding: 8px 12px;
-                box-shadow: inset 2px 2px 5px #d1d1d4, inset -2px -2px 5px #ffffff;
-                color: #333;
-                min-width: 120px;
-            }
-
-            .are-container.dark .are-select {
-                background: linear-gradient(145deg, #2c2c2c, #1a1a1a);
-                box-shadow: inset 2px 2px 5px #0f0f0f, inset -2px -2px 5px #3a3a3a;
-                color: #e0e0e0;
-            }
-
-            .are-content {
-                display: flex;
-                gap: 20px;
-                min-height: 400px;
-            }
-
-            .are-sidebar {
-                display: flex;
-                flex-direction: column;
-                gap: 10px;
-                padding: 10px;
-                background: linear-gradient(145deg, #f0f0f3, #e6e6e9);
-                border-radius: 15px;
-                box-shadow: inset 3px 3px 8px #d1d1d4, inset -3px -3px 8px #ffffff;
-                width: 60px;
-            }
-
-            .are-container.dark .are-sidebar {
-                background: linear-gradient(145deg, #2c2c2c, #1a1a1a);
-                box-shadow: inset 3px 3px 8px #0f0f0f, inset -3px -3px 8px #3a3a3a;
-            }
-
-            .are-tab {
-                width: 40px;
-                height: 40px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                border-radius: 10px;
-                cursor: pointer;
-                transition: all 0.2s ease;
-                background: linear-gradient(145deg, #e6e6e9, #f0f0f3);
-                box-shadow: 2px 2px 5px #d1d1d4, -2px -2px 5px #ffffff;
-                font-size: 16px;
-            }
-
-            .are-container.dark .are-tab {
-                background: linear-gradient(145deg, #1a1a1a, #2c2c2c);
-                box-shadow: 2px 2px 5px #0f0f0f, -2px -2px 5px #3a3a3a;
-            }
-
-            .are-tab.active {
-                box-shadow: inset 2px 2px 5px #d1d1d4, inset -2px -2px 5px #ffffff;
-                background: linear-gradient(145deg, #667eea, #764ba2);
-            }
-
-            .are-container.dark .are-tab.active {
-                box-shadow: inset 2px 2px 5px #0f0f0f, inset -2px -2px 5px #3a3a3a;
-            }
-
-            .are-editor-area {
-                flex: 1;
-                background: linear-gradient(145deg, #f0f0f3, #e6e6e9);
-                border-radius: 15px;
-                box-shadow: inset 5px 5px 15px #d1d1d4, inset -5px -5px 15px #ffffff;
-                padding: 20px;
-            }
-
-            .are-container.dark .are-editor-area {
-                background: linear-gradient(145deg, #2c2c2c, #1a1a1a);
-                box-shadow: inset 5px 5px 15px #0f0f0f, inset -5px -5px 15px #3a3a3a;
-            }
-
-            .are-editor {
-                min-height: 400px;
-                background: transparent;
-                border: none;
-                outline: none;
-                line-height: 1.6;
-                font-size: 16px;
-                color: inherit;
-            }
-
-            .simple-editor {
-                min-height: 400px;
-                background: transparent;
-                border: none;
-                outline: none;
-                line-height: 1.6;
-                font-size: 16px;
-                color: inherit;
-                padding: 0;
-            }
-
-            .simple-editor h1, .simple-editor h2, .simple-editor h3,
-            .simple-editor h4, .simple-editor h5, .simple-editor h6 {
-                margin: 1em 0 0.5em 0;
-                color: inherit;
-            }
-
-            .simple-editor p {
-                margin: 0.5em 0;
-            }
-
-            .simple-editor ul, .simple-editor ol {
-                margin: 0.5em 0;
-                padding-left: 2em;
-            }
-
-            .are-panel {
-                width: 300px;
-                background: linear-gradient(145deg, #f0f0f3, #e6e6e9);
-                border-radius: 15px;
-                box-shadow: inset 3px 3px 8px #d1d1d4, inset -3px -3px 8px #ffffff;
-                padding: 20px;
+            .fullscreen .editor-wrapper {
+                height: calc(100vh - 120px);
                 overflow-y: auto;
             }
 
-            .are-container.dark .are-panel {
-                background: linear-gradient(145deg, #2c2c2c, #1a1a1a);
-                box-shadow: inset 3px 3px 8px #0f0f0f, inset -3px -3px 8px #3a3a3a;
-            }
-
-            .are-panel-content {
-                display: none;
-            }
-
-            .are-panel-content.active {
-                display: block;
-            }
-
-            .are-panel-content h3 {
-                margin: 0 0 15px 0;
-                color: inherit;
-            }
-
-            .are-template-grid, .are-blocks-grid, .are-export-grid {
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 10px;
-                margin: 15px 0;
-            }
-
-            .are-template, .are-block, .are-export-btn {
-                padding: 15px 10px;
-                border: none;
-                border-radius: 8px;
-                cursor: pointer;
-                background: linear-gradient(145deg, #e6e6e9, #f0f0f3);
-                box-shadow: 2px 2px 5px #d1d1d4, -2px -2px 5px #ffffff;
-                transition: all 0.2s ease;
-                color: #333;
-                text-align: center;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                gap: 5px;
-            }
-
-            .are-container.dark .are-template,
-            .are-container.dark .are-block,
-            .are-container.dark .are-export-btn {
-                background: linear-gradient(145deg, #1a1a1a, #2c2c2c);
-                box-shadow: 2px 2px 5px #0f0f0f, -2px -2px 5px #3a3a3a;
-                color: #e0e0e0;
-            }
-
-            .are-template:hover, .are-block:hover, .are-export-btn:hover {
-                box-shadow: inset 2px 2px 5px #d1d1d4, inset -2px -2px 5px #ffffff;
-            }
-
-            .are-container.dark .are-template:hover,
-            .are-container.dark .are-block:hover,
-            .are-container.dark .are-export-btn:hover {
-                box-shadow: inset 2px 2px 5px #0f0f0f, inset -2px -2px 5px #3a3a3a;
-            }
-
-            .template-icon, .block-icon, .export-icon {
-                font-size: 20px;
-            }
-
-            .template-name, .block-name, .export-name {
-                font-size: 11px;
-                font-weight: 500;
-            }
-
-            .are-settings {
-                display: flex;
-                flex-direction: column;
-                gap: 15px;
-            }
-
-            .setting-group {
-                display: flex;
-                flex-direction: column;
-                gap: 5px;
-            }
-
-            .setting-group label {
-                font-size: 14px;
-                font-weight: 500;
-                color: inherit;
-            }
-
-            .are-status-bar {
-                display: flex;
-                justify-content: space-between;
-                margin-top: 20px;
-                padding: 10px 20px;
-                background: linear-gradient(145deg, #f0f0f3, #e6e6e9);
-                border-radius: 15px;
-                box-shadow: inset 2px 2px 5px #d1d1d4, inset -2px -2px 5px #ffffff;
-                font-size: 12px;
-                color: #666;
-                flex-wrap: wrap;
-                gap: 10px;
-            }
-
-            .are-container.dark .are-status-bar {
-                background: linear-gradient(145deg, #2c2c2c, #1a1a1a);
-                box-shadow: inset 2px 2px 5px #0f0f0f, inset -2px -2px 5px #3a3a3a;
-                color: #999;
-            }
-
-            /* Editor.js overrides */
-            .codex-editor {
-                background: transparent !important;
-            }
-
-            .codex-editor__redactor {
-                background: transparent !important;
-                padding: 0 !important;
-            }
-
+            /* Editor.js custom styling */
             .ce-block__content {
-                background: transparent !important;
+                max-width: none;
             }
 
-            @media (max-width: 768px) {
-                .are-content {
-                    flex-direction: column;
-                }
-                
-                .are-sidebar {
-                    flex-direction: row;
-                    width: auto;
-                    height: 60px;
-                }
-                
-                .are-panel {
-                    width: auto;
-                }
-                
-                .are-toolbar {
-                    flex-direction: column;
-                    align-items: stretch;
-                }
-                
-                .are-group {
-                    justify-content: center;
-                }
+            .ce-toolbar__actions {
+                right: -5px;
+            }
+
+            .cdx-quote {
+                border-left: 4px solid #007acc;
+                padding-left: 16px;
+                margin: 16px 0;
+            }
+
+            .advanced-editor-container.dark .cdx-quote {
+                border-color: #4a9eff;
+            }
+
+            .ce-code__textarea {
+                background: #f4f4f4 !important;
+                border: 1px solid #e1e5e9 !important;
+                border-radius: 4px !important;
+                font-family: 'Monaco', 'Consolas', monospace !important;
+            }
+
+            .advanced-editor-container.dark .ce-code__textarea {
+                background: #2d2d2d !important;
+                border-color: #444 !important;
+                color: #fff !important;
+            }
+
+            .cdx-table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            .cdx-table td {
+                border: 1px solid #ddd;
+                padding: 8px;
+            }
+
+            .advanced-editor-container.dark .cdx-table td {
+                border-color: #444;
             }
         `;
         this.appendChild(style);
     }
 
-    setupEventListeners() {
-        // Header controls
-        this.addEventListener('click', (e) => {
-            switch (e.target.id) {
-                case 'theme-toggle':
-                    this.toggleTheme();
-                    break;
-                case 'fullscreen-toggle':
-                    this.toggleFullscreen();
-                    break;
-                case 'save-btn':
-                    this.saveContent();
-                    break;
-                case 'clear-btn':
-                    this.clearContent();
-                    break;
-                case 'reset-editor':
-                    this.resetEditor();
-                    break;
-            }
-
-            // Toolbar commands (for simple editor)
-            const command = e.target.dataset.command;
-            if (command && this.useSimpleEditor) {
-                this.execCommand(command);
-            }
-
-            // Special buttons
-            if (e.target.id === 'insert-link') this.insertLink();
-            if (e.target.id === 'insert-image') this.insertImage();
-            if (e.target.id === 'insert-table') this.insertTable();
-            if (e.target.id === 'insert-hr') this.insertHR();
-
-            // Panel tabs
-            if (e.target.classList.contains('are-tab')) {
-                this.switchPanel(e.target.dataset.panel);
-            }
-
-            // Templates
-            if (e.target.classList.contains('are-template')) {
-                this.loadTemplate(e.target.dataset.template);
-            }
-
-            // Blocks (for Editor.js)
-            if (e.target.classList.contains('are-block') && !this.useSimpleEditor) {
-                this.addBlock(e.target.dataset.block);
-            }
-
-            // Export
-            if (e.target.classList.contains('are-export-btn')) {
-                this.exportContent(e.target.dataset.format);
-            }
-        });
-
-        // Format select
-        this.querySelector('#format-select').addEventListener('change', (e) => {
-            if (this.useSimpleEditor && e.target.value) {
-                this.execCommand('formatBlock', '<' + e.target.value + '>');
-            }
-        });
-
-        // Settings
-        this.querySelector('#editor-theme').addEventListener('change', (e) => {
-            this.setTheme(e.target.value);
-        });
-
-        this.querySelector('#editor-mode').addEventListener('change', (e) => {
-            if (e.target.value === 'simple') {
-                this.useSimpleEditor = true;
-                this.initializeSimpleEditor();
-            }
-        });
-    }
-
-    // Simple editor commands
-    execCommand(command, value = null) {
-        if (!this.useSimpleEditor) return;
-        document.execCommand(command, false, value);
-        this.simpleEditor.focus();
-    }
-
-    insertLink() {
-        const url = prompt('Enter URL:');
-        if (url) {
-            if (this.useSimpleEditor) {
-                this.execCommand('createLink', url);
-            }
-        }
-    }
-
-    insertImage() {
-        const url = prompt('Enter image URL:');
-        if (url) {
-            if (this.useSimpleEditor) {
-                this.execCommand('insertImage', url);
-            }
-        }
-    }
-
-    insertTable() {
-        if (this.useSimpleEditor) {
-            const html = `
-                <table border="1" style="border-collapse: collapse; width: 100%; margin: 10px 0;">
-                    <tr>
-                        <th style="padding: 8px; background: #f0f0f0;">Header 1</th>
-                        <th style="padding: 8px; background: #f0f0f0;">Header 2</th>
-                        <th style="padding: 8px; background: #f0f0f0;">Header 3</th>
-                    </tr>
-                    <tr>
-                        <td style="padding: 8px;">Cell 1</td>
-                        <td style="padding: 8px;">Cell 2</td>
-                        <td style="padding: 8px;">Cell 3</td>
-                    </tr>
-                </table>
-            `;
-            this.execCommand('insertHTML', html);
-        }
-    }
-
-    insertHR() {
-        if (this.useSimpleEditor) {
-            this.execCommand('insertHTML', '<hr style="margin: 20px 0;">');
-        }
-    }
-
-    async addBlock(type) {
-        if (this.useSimpleEditor || !this.editor) return;
-
-        try {
-            const index = await this.editor.blocks.getCurrentBlockIndex();
-            await this.editor.blocks.insert(type, {}, {}, index + 1);
-        } catch (error) {
-            console.error('Error adding block:', error);
-        }
-    }
-
-    switchPanel(panelName) {
-        // Update tabs
-        this.querySelectorAll('.are-tab').forEach(tab => {
-            tab.classList.remove('active');
-        });
-        this.querySelector(`[data-panel="${panelName}"]`).classList.add('active');
-        
-        // Update panels
-        this.querySelectorAll('.are-panel-content').forEach(panel => {
-            panel.classList.remove('active');
-        });
-        this.querySelector(`#${panelName}-panel`).classList.add('active');
-    }
-
-    loadTemplate(templateName) {
-        const templates = {
-            blog: `<h1>Blog Post Title</h1>
-                <p><em>Published on ${new Date().toLocaleDateString()}</em></p>
-                <p>Start your blog post with an engaging opening...</p>
-                <h2>Main Content</h2>
-                <p>Develop your ideas here...</p>
-                <h2>Conclusion</h2>
-                <p>Wrap up with a strong conclusion...</p>`,
-            
-            article: `<h1>Article Headline</h1>
-                <p><strong>By Author Name</strong> - ${new Date().toLocaleDateString()}</p>
-                <p><strong>Lead:</strong> A compelling opening paragraph...</p>
-                <p>The body of your article continues here...</p>`,
-            
-            newsletter: `<h1>📧 Newsletter Title</h1>
-                <p><strong>Issue #1 - ${new Date().toLocaleDateString()}</strong></p>
-                <h2>📰 Top Stories</h2>
-                <ul><li>Important news item #1</li><li>Key update #2</li></ul>
-                <h2>🔥 Featured Content</h2>
-                <p>Showcase your best content here...</p>`,
-            
-            docs: `<h1>Documentation Title</h1>
-                <h2>Overview</h2>
-                <p>Brief overview of what this covers...</p>
-                <h2>Getting Started</h2>
-                <ol><li>Step one</li><li>Step two</li><li>Step three</li></ol>`
-        };
-
-        if (templates[templateName]) {
-            if (this.useSimpleEditor && this.simpleEditor) {
-                this.simpleEditor.innerHTML = templates[templateName];
-                this.updateStats();
-            } else if (this.editor) {
-                // For Editor.js, we'd need to convert HTML to blocks
-                // For now, just show a message
-                this.showStatus('Template loaded in simple mode');
-            }
-        }
-    }
-
-    async exportContent(format) {
-        let content = '';
-
-        if (this.useSimpleEditor && this.simpleEditor) {
-            content = this.simpleEditor.innerHTML;
-        } else if (this.editor) {
-            try {
-                const data = await this.editor.save();
-                content = JSON.stringify(data, null, 2);
-            } catch (error) {
-                console.error('Export error:', error);
-                this.showStatus('Export failed', 'error');
-                return;
-            }
-        }
-
-        switch (format) {
-            case 'html':
-                this.downloadFile(this.generateHTML(content), 'content.html', 'text/html');
-                break;
-            case 'markdown':
-                this.downloadFile(this.htmlToMarkdown(content), 'content.md', 'text/markdown');
-                break;
-            case 'text':
-                this.downloadFile(this.stripHTML(content), 'content.txt', 'text/plain');
-                break;
-            case 'json':
-                this.downloadFile(content, 'content.json', 'application/json');
-                break;
-            case 'copy':
-                this.copyToClipboard(content);
-                break;
-            case 'print':
-                this.printContent(content);
-                break;
-        }
-
-        this.showStatus(`Exported as ${format.toUpperCase()}`, 'success');
-    }
-
-    generateHTML(content) {
-        return `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Exported Content</title>
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px; }
-        h1, h2, h3, h4, h5, h6 { color: #333; margin-top: 2em; }
-        table { border-collapse: collapse; width: 100%; margin: 20px 0; }
-        td, th { border: 1px solid #ddd; padding: 8px; }
-    </style>
-</head>
-<body>
-    ${content}
-</body>
-</html>`;
-    }
-
-    htmlToMarkdown(html) {
-        let markdown = html;
-        markdown = markdown.replace(/<h([1-6])[^>]*>(.*?)<\/h[1-6]>/gi, (match, level, text) => '#'.repeat(parseInt(level)) + ' ' + text + '\n\n');
-        markdown = markdown.replace(/<strong[^>]*>(.*?)<\/strong>/gi, '**$1**');
-        markdown = markdown.replace(/<em[^>]*>(.*?)<\/em>/gi, '*$1*');
-        markdown = markdown.replace(/<p[^>]*>(.*?)<\/p>/gi, '$1\n\n');
-        markdown = markdown.replace(/<br[^>]*>/gi, '\n');
-        markdown = markdown.replace(/<[^>]*>/g, '');
-        return markdown.trim();
-    }
-
-    updateStats() {
-        let text = '';
-        
-        if (this.useSimpleEditor && this.simpleEditor) {
-            text = this.simpleEditor.textContent || '';
-            this.querySelector('#editor-mode-status').textContent = 'Mode: Simple Editor';
-        } else if (this.editor) {
-            // For Editor.js, we'd need to get text from blocks
-            this.querySelector('#editor-mode-status').textContent = 'Mode: Editor.js';
-        } else {
-            this.querySelector('#editor-mode-status').textContent = 'Mode: Loading...';
+    async loadEditorJS() {
+        // Wait for Editor.js to load
+        if (typeof EditorJS === 'undefined') {
+            setTimeout(() => this.loadEditorJS(), 100);
             return;
         }
 
-        const words = text.trim().split(/\s+/).filter(word => word.length > 0).length;
-        const chars = text.length;
+        try {
+            // Initialize Editor.js with comprehensive plugins
+            this.editor = new EditorJS({
+                holder: 'advanced-editor',
+                placeholder: 'Start writing your amazing content here...',
+                autofocus: true,
+                tools: {
+                    header: {
+                        class: Header,
+                        config: {
+                            placeholder: 'Enter a header',
+                            levels: [1, 2, 3, 4, 5, 6],
+                            defaultLevel: 2
+                        }
+                    },
+                    paragraph: {
+                        class: Paragraph,
+                        inlineToolbar: true,
+                        config: {
+                            placeholder: 'Tell your story...'
+                        }
+                    },
+                    list: {
+                        class: List,
+                        inlineToolbar: true,
+                        config: {
+                            defaultStyle: 'unordered'
+                        }
+                    },
+                    checklist: {
+                        class: Checklist,
+                        inlineToolbar: true
+                    },
+                    quote: {
+                        class: Quote,
+                        inlineToolbar: true,
+                        config: {
+                            quotePlaceholder: 'Enter a quote',
+                            captionPlaceholder: 'Quote author'
+                        }
+                    },
+                    code: {
+                        class: CodeTool,
+                        config: {
+                            placeholder: 'Enter your code here...'
+                        }
+                    },
+                    delimiter: Delimiter,
+                    table: {
+                        class: Table,
+                        inlineToolbar: true,
+                        config: {
+                            rows: 2,
+                            cols: 3
+                        }
+                    },
+                    image: {
+                        class: ImageTool,
+                        config: {
+                            endpoints: {
+                                byFile: '/upload-image',
+                                byUrl: '/fetch-image'
+                            },
+                            field: 'image',
+                            types: 'image/*',
+                            captionPlaceholder: 'Image caption',
+                            buttonContent: 'Select an image',
+                            uploader: {
+                                uploadByFile: this.uploadImageByFile.bind(this),
+                                uploadByUrl: this.uploadImageByUrl.bind(this)
+                            }
+                        }
+                    },
+                    embed: {
+                        class: Embed,
+                        config: {
+                            services: {
+                                youtube: true,
+                                vimeo: true,
+                                instagram: true,
+                                twitter: true,
+                                codepen: true,
+                                facebook: true,
+                                pinterest: true
+                            }
+                        }
+                    },
+                    linkTool: {
+                        class: LinkTool,
+                        config: {
+                            endpoint: '/fetch-url'
+                        }
+                    },
+                    marker: {
+                        class: Marker,
+                        shortcut: 'CMD+SHIFT+M'
+                    },
+                    inlineCode: {
+                        class: InlineCode,
+                        shortcut: 'CMD+SHIFT+C'
+                    },
+                    warning: {
+                        class: Warning,
+                        inlineToolbar: true,
+                        config: {
+                            titlePlaceholder: 'Warning title',
+                            messagePlaceholder: 'Warning message'
+                        }
+                    },
+                    raw: {
+                        class: RawTool,
+                        config: {
+                            placeholder: 'Enter raw HTML'
+                        }
+                    }
+                },
+                onChange: () => {
+                    this.updateStatus();
+                },
+                onReady: () => {
+                    console.log('Advanced Rich Editor is ready!');
+                    this.updateStatus();
+                }
+            });
 
-        this.querySelector('#word-count').textContent = `Words: ${words}`;
-        this.querySelector('#char-count').textContent = `Characters: ${chars}`;
+            this.setupEventListeners();
+        } catch (error) {
+            console.error('Error initializing editor:', error);
+            this.showFallbackEditor();
+        }
     }
 
-    saveState() {
-        if (this.useSimpleEditor && this.simpleEditor) {
-            this.undoStack.push(this.simpleEditor.innerHTML);
-            if (this.undoStack.length > 50) {
-                this.undoStack.shift();
+    setupEventListeners() {
+        // Save button
+        this.querySelector('#save-btn').addEventListener('click', () => {
+            this.saveContent();
+        });
+
+        // Load button
+        this.querySelector('#load-btn').addEventListener('click', () => {
+            this.loadContent();
+        });
+
+        // Clear button
+        this.querySelector('#clear-btn').addEventListener('click', () => {
+            this.clearContent();
+        });
+
+        // Export button
+        this.querySelector('#export-btn').addEventListener('click', () => {
+            this.exportContent();
+        });
+
+        // Import button
+        this.querySelector('#import-btn').addEventListener('click', () => {
+            this.querySelector('#import-file').click();
+        });
+
+        // Import file handler
+        this.querySelector('#import-file').addEventListener('change', (e) => {
+            this.importFile(e.target.files[0]);
+        });
+
+        // Theme toggle
+        this.querySelector('#theme-btn').addEventListener('click', () => {
+            this.toggleTheme();
+        });
+
+        // Fullscreen toggle
+        this.querySelector('#fullscreen-btn').addEventListener('click', () => {
+            this.toggleFullscreen();
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey || e.metaKey) {
+                switch (e.key) {
+                    case 's':
+                        e.preventDefault();
+                        this.saveContent();
+                        break;
+                    case 'e':
+                        e.preventDefault();
+                        this.exportContent();
+                        break;
+                    case 'f':
+                        if (e.shiftKey) {
+                            e.preventDefault();
+                            this.toggleFullscreen();
+                        }
+                        break;
+                }
             }
-            this.redoStack = [];
-        }
-    }
-
-    undo() {
-        if (this.useSimpleEditor && this.undoStack.length > 1) {
-            const current = this.undoStack.pop();
-            this.redoStack.push(current);
-            this.simpleEditor.innerHTML = this.undoStack[this.undoStack.length - 1];
-            this.updateStats();
-        }
-    }
-
-    redo() {
-        if (this.useSimpleEditor && this.redoStack.length > 0) {
-            const state = this.redoStack.pop();
-            this.undoStack.push(state);
-            this.simpleEditor.innerHTML = state;
-            this.updateStats();
-        }
+        });
     }
 
     async saveContent() {
-        this.showStatus('Content saved', 'success');
+        try {
+            const outputData = await this.editor.save();
+            this.editorData = outputData;
+            localStorage.setItem('advanced-editor-content', JSON.stringify(outputData));
+            this.showNotification('Content saved successfully!', 'success');
+        } catch (error) {
+            console.error('Save failed:', error);
+            this.showNotification('Failed to save content', 'error');
+        }
+    }
+
+    async loadContent() {
+        try {
+            const savedData = localStorage.getItem('advanced-editor-content');
+            if (savedData) {
+                const data = JSON.parse(savedData);
+                await this.editor.render(data);
+                this.showNotification('Content loaded successfully!', 'success');
+                this.updateStatus();
+            } else {
+                this.showNotification('No saved content found', 'warning');
+            }
+        } catch (error) {
+            console.error('Load failed:', error);
+            this.showNotification('Failed to load content', 'error');
+        }
     }
 
     async clearContent() {
-        if (confirm('Clear all content?')) {
-            if (this.useSimpleEditor && this.simpleEditor) {
-                this.simpleEditor.innerHTML = '<p>Start writing...</p>';
-            } else if (this.editor) {
+        if (confirm('Are you sure you want to clear all content?')) {
+            try {
                 await this.editor.clear();
+                this.showNotification('Content cleared', 'success');
+                this.updateStatus();
+            } catch (error) {
+                console.error('Clear failed:', error);
             }
-            this.updateStats();
         }
     }
 
-    resetEditor() {
-        location.reload();
+    async exportContent() {
+        try {
+            const outputData = await this.editor.save();
+            const format = this.querySelector('#export-format').value;
+            let content, filename, mimeType;
+
+            switch (format) {
+                case 'json':
+                    content = JSON.stringify(outputData, null, 2);
+                    filename = 'content.json';
+                    mimeType = 'application/json';
+                    break;
+                case 'html':
+                    content = this.convertToHTML(outputData);
+                    filename = 'content.html';
+                    mimeType = 'text/html';
+                    break;
+                case 'markdown':
+                    content = this.convertToMarkdown(outputData);
+                    filename = 'content.md';
+                    mimeType = 'text/markdown';
+                    break;
+                case 'plain':
+                    content = this.convertToPlainText(outputData);
+                    filename = 'content.txt';
+                    mimeType = 'text/plain';
+                    break;
+            }
+
+            this.downloadFile(content, filename, mimeType);
+            this.showNotification(`Content exported as ${format.toUpperCase()}`, 'success');
+        } catch (error) {
+            console.error('Export failed:', error);
+            this.showNotification('Failed to export content', 'error');
+        }
+    }
+
+    async importFile(file) {
+        if (!file) return;
+
+        try {
+            const text = await file.text();
+            let data;
+
+            if (file.name.endsWith('.json')) {
+                data = JSON.parse(text);
+                await this.editor.render(data);
+            } else if (file.name.endsWith('.md')) {
+                data = this.convertFromMarkdown(text);
+                await this.editor.render(data);
+            } else {
+                // Plain text or HTML
+                data = {
+                    blocks: [{
+                        type: 'paragraph',
+                        data: { text: text }
+                    }]
+                };
+                await this.editor.render(data);
+            }
+
+            this.showNotification('File imported successfully!', 'success');
+            this.updateStatus();
+        } catch (error) {
+            console.error('Import failed:', error);
+            this.showNotification('Failed to import file', 'error');
+        }
     }
 
     toggleTheme() {
+        const container = this.querySelector('.advanced-editor-container');
         this.currentTheme = this.currentTheme === 'light' ? 'dark' : 'light';
-        this.setTheme(this.currentTheme);
-    }
-
-    setTheme(theme) {
-        this.currentTheme = theme;
-        this.querySelector('.are-container').classList.toggle('dark', theme === 'dark');
+        container.classList.toggle('dark', this.currentTheme === 'dark');
+        this.showNotification(`Switched to ${this.currentTheme} theme`, 'info');
     }
 
     toggleFullscreen() {
-        this.isFullscreen = !this.isFullscreen;
-        this.querySelector('.are-container').classList.toggle('fullscreen', this.isFullscreen);
+        const container = this.querySelector('.advanced-editor-container');
+        container.classList.toggle('fullscreen');
         
-        if (this.isFullscreen) {
-            document.body.style.overflow = 'hidden';
+        if (container.classList.contains('fullscreen')) {
+            this.querySelector('#fullscreen-btn').innerHTML = '🗗 Exit';
+            this.showNotification('Entered fullscreen mode', 'info');
         } else {
-            document.body.style.overflow = '';
+            this.querySelector('#fullscreen-btn').innerHTML = '⛶ Full';
+            this.showNotification('Exited fullscreen mode', 'info');
         }
+    }
+
+    async updateStatus() {
+        try {
+            const data = await this.editor.save();
+            const blocks = data.blocks || [];
+            
+            let wordCount = 0;
+            let charCount = 0;
+            
+            blocks.forEach(block => {
+                if (block.data && block.data.text) {
+                    const text = this.stripHTML(block.data.text);
+                    wordCount += text.split(/\s+/).filter(word => word.length > 0).length;
+                    charCount += text.length;
+                }
+            });
+
+            this.querySelector('#word-count').textContent = `Words: ${wordCount}`;
+            this.querySelector('#char-count').textContent = `Characters: ${charCount}`;
+            this.querySelector('#block-count').textContent = `Blocks: ${blocks.length}`;
+        } catch (error) {
+            console.error('Status update failed:', error);
+        }
+    }
+
+    convertToHTML(data) {
+        let html = '<div class="editor-content">\n';
+        
+        data.blocks.forEach(block => {
+            switch (block.type) {
+                case 'header':
+                    html += `<h${block.data.level}>${block.data.text}</h${block.data.level}>\n`;
+                    break;
+                case 'paragraph':
+                    html += `<p>${block.data.text}</p>\n`;
+                    break;
+                case 'list':
+                    const tag = block.data.style === 'ordered' ? 'ol' : 'ul';
+                    html += `<${tag}>\n`;
+                    block.data.items.forEach(item => {
+                        html += `<li>${item}</li>\n`;
+                    });
+                    html += `</${tag}>\n`;
+                    break;
+                case 'quote':
+                    html += `<blockquote>\n<p>${block.data.text}</p>\n`;
+                    if (block.data.caption) {
+                        html += `<cite>${block.data.caption}</cite>\n`;
+                    }
+                    html += `</blockquote>\n`;
+                    break;
+                case 'code':
+                    html += `<pre><code>${this.escapeHTML(block.data.code)}</code></pre>\n`;
+                    break;
+                case 'delimiter':
+                    html += `<hr>\n`;
+                    break;
+                case 'table':
+                    html += `<table>\n`;
+                    block.data.content.forEach((row, index) => {
+                        html += `<tr>\n`;
+                        row.forEach(cell => {
+                            const tag = index === 0 ? 'th' : 'td';
+                            html += `<${tag}>${cell}</${tag}>\n`;
+                        });
+                        html += `</tr>\n`;
+                    });
+                    html += `</table>\n`;
+                    break;
+                case 'image':
+                    html += `<img src="${block.data.file.url}" alt="${block.data.caption || ''}">\n`;
+                    if (block.data.caption) {
+                        html += `<figcaption>${block.data.caption}</figcaption>\n`;
+                    }
+                    break;
+                default:
+                    html += `<!-- Unsupported block type: ${block.type} -->\n`;
+            }
+        });
+        
+        html += '</div>';
+        return html;
+    }
+
+    convertToMarkdown(data) {
+        let markdown = '';
+        
+        data.blocks.forEach(block => {
+            switch (block.type) {
+                case 'header':
+                    markdown += `${'#'.repeat(block.data.level)} ${this.stripHTML(block.data.text)}\n\n`;
+                    break;
+                case 'paragraph':
+                    markdown += `${this.stripHTML(block.data.text)}\n\n`;
+                    break;
+                case 'list':
+                    block.data.items.forEach((item, index) => {
+                        const prefix = block.data.style === 'ordered' ? `${index + 1}. ` : '- ';
+                        markdown += `${prefix}${this.stripHTML(item)}\n`;
+                    });
+                    markdown += '\n';
+                    break;
+                case 'quote':
+                    markdown += `> ${this.stripHTML(block.data.text)}\n`;
+                    if (block.data.caption) {
+                        markdown += `> \n> — ${this.stripHTML(block.data.caption)}\n`;
+                    }
+                    markdown += '\n';
+                    break;
+                case 'code':
+                    markdown += `\`\`\`\n${block.data.code}\n\`\`\`\n\n`;
+                    break;
+                case 'delimiter':
+                    markdown += `---\n\n`;
+                    break;
+                case 'image':
+                    markdown += `![${block.data.caption || ''}](${block.data.file.url})\n\n`;
+                    break;
+                default:
+                    markdown += `<!-- Unsupported block type: ${block.type} -->\n\n`;
+            }
+        });
+        
+        return markdown;
+    }
+
+    convertToPlainText(data) {
+        let text = '';
+        
+        data.blocks.forEach(block => {
+            switch (block.type) {
+                case 'header':
+                    text += `${this.stripHTML(block.data.text)}\n${'='.repeat(this.stripHTML(block.data.text).length)}\n\n`;
+                    break;
+                case 'paragraph':
+                    text += `${this.stripHTML(block.data.text)}\n\n`;
+                    break;
+                case 'list':
+                    block.data.items.forEach((item, index) => {
+                        const prefix = block.data.style === 'ordered' ? `${index + 1}. ` : '• ';
+                        text += `${prefix}${this.stripHTML(item)}\n`;
+                    });
+                    text += '\n';
+                    break;
+                case 'quote':
+                    text += `"${this.stripHTML(block.data.text)}"\n`;
+                    if (block.data.caption) {
+                        text += `— ${this.stripHTML(block.data.caption)}\n`;
+                    }
+                    text += '\n';
+                    break;
+                case 'code':
+                    text += `${block.data.code}\n\n`;
+                    break;
+                case 'delimiter':
+                    text += `${'─'.repeat(50)}\n\n`;
+                    break;
+                default:
+                    // Skip unsupported blocks in plain text
+                    break;
+            }
+        });
+        
+        return text;
+    }
+
+    convertFromMarkdown(markdown) {
+        // Basic markdown to Editor.js conversion
+        const lines = markdown.split('\n');
+        const blocks = [];
+        let currentBlock = null;
+
+        lines.forEach(line => {
+            line = line.trim();
+            
+            if (line.startsWith('#')) {
+                const level = line.match(/^#+/)[0].length;
+                blocks.push({
+                    type: 'header',
+                    data: {
+                        text: line.replace(/^#+\s*/, ''),
+                        level: Math.min(level, 6)
+                    }
+                });
+            } else if (line.startsWith('- ') || line.startsWith('* ')) {
+                if (!currentBlock || currentBlock.type !== 'list') {
+                    currentBlock = {
+                        type: 'list',
+                        data: {
+                            style: 'unordered',
+                            items: []
+                        }
+                    };
+                    blocks.push(currentBlock);
+                }
+                currentBlock.data.items.push(line.replace(/^[-*]\s*/, ''));
+            } else if (line.match(/^\d+\.\s/)) {
+                if (!currentBlock || currentBlock.type !== 'list') {
+                    currentBlock = {
+                        type: 'list',
+                        data: {
+                            style: 'ordered',
+                            items: []
+                        }
+                    };
+                    blocks.push(currentBlock);
+                }
+                currentBlock.data.items.push(line.replace(/^\d+\.\s*/, ''));
+            } else if (line.startsWith('> ')) {
+                blocks.push({
+                    type: 'quote',
+                    data: {
+                        text: line.replace(/^>\s*/, ''),
+                        caption: ''
+                    }
+                });
+                currentBlock = null;
+            } else if (line === '---') {
+                blocks.push({
+                    type: 'delimiter',
+                    data: {}
+                });
+                currentBlock = null;
+            } else if (line && line !== '') {
+                blocks.push({
+                    type: 'paragraph',
+                    data: {
+                        text: line
+                    }
+                });
+                currentBlock = null;
+            } else {
+                currentBlock = null;
+            }
+        });
+
+        return { blocks };
+    }
+
+    async uploadImageByFile(file) {
+        // Mock image upload - in real implementation, upload to your server
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                resolve({
+                    success: 1,
+                    file: {
+                        url: e.target.result
+                    }
+                });
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    async uploadImageByUrl(url) {
+        // Mock URL fetch - in real implementation, validate and process URL
+        return {
+            success: 1,
+            file: {
+                url: url
+            }
+        };
+    }
+
+    showFallbackEditor() {
+        this.querySelector('#advanced-editor').innerHTML = `
+            <div style="padding: 20px; text-align: center; color: #666;">
+                <h3>Editor.js failed to load</h3>
+                <p>Falling back to basic text editor...</p>
+                <textarea 
+                    style="width: 100%; height: 300px; padding: 12px; border: 1px solid #ddd; border-radius: 4px; font-family: inherit;"
+                    placeholder="Start writing your content here...">
+                </textarea>
+            </div>
+        `;
     }
 
     downloadFile(content, filename, mimeType) {
         const blob = new Blob([content], { type: mimeType });
         const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
         URL.revokeObjectURL(url);
     }
 
-    copyToClipboard(content) {
-        if (navigator.clipboard) {
-            navigator.clipboard.writeText(content).then(() => {
-                this.showStatus('Copied to clipboard!');
-            });
-        } else {
-            const textArea = document.createElement('textarea');
-            textArea.value = content;
-            document.body.appendChild(textArea);
-            textArea.select();
-            document.execCommand('copy');
-            document.body.removeChild(textArea);
-            this.showStatus('Copied to clipboard!');
-        }
-    }
+    showNotification(message, type = 'info') {
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 16px;
+            border-radius: 4px;
+            color: white;
+            font-weight: 500;
+            z-index: 10000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            transition: all 0.3s ease;
+        `;
 
-    printContent(content) {
-        const printWindow = window.open('', '_blank');
-        printWindow.document.write(this.generateHTML(content));
-        printWindow.document.close();
-        printWindow.print();
-    }
+        const colors = {
+            success: '#28a745',
+            error: '#dc3545',
+            warning: '#ffc107',
+            info: '#007bff'
+        };
 
-    showStatus(message, type = 'info', duration = 3000) {
-        this.querySelector('#last-saved').textContent = message;
+        notification.style.backgroundColor = colors[type] || colors.info;
+        notification.textContent = message;
+
+        document.body.appendChild(notification);
+
+        // Remove notification after 3 seconds
         setTimeout(() => {
-            this.querySelector('#last-saved').textContent = 'Ready';
-        }, duration);
+            notification.style.opacity = '0';
+            notification.style.transform = 'translateX(100%)';
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 300);
+        }, 3000);
     }
 
     stripHTML(html) {
-        const tmp = document.createElement('div');
-        tmp.innerHTML = html;
-        return tmp.textContent || tmp.innerText || '';
+        const div = document.createElement('div');
+        div.innerHTML = html;
+        return div.textContent || div.innerText || '';
+    }
+
+    escapeHTML(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Public API methods
+    async getContent() {
+        return await this.editor.save();
+    }
+
+    async setContent(data) {
+        return await this.editor.render(data);
+    }
+
+    async clearEditor() {
+        return await this.editor.clear();
     }
 }
 
-// Register the custom element
+// Define the custom element
 customElements.define('advanced-rich-editor', AdvancedRichEditor);
+
+// Export for use in Wix
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = AdvancedRichEditor;
+}
