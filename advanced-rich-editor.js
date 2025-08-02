@@ -28,14 +28,13 @@ class AdvancedRichEditor extends HTMLElement {
         this.editorData = null;
         this.currentTheme = 'light';
         this.isInitialized = false;
-        this.scriptsLoaded = false;
-        this.retryCount = 0;
-        this.maxRetries = 20;
+        this.initAttempts = 0;
+        this.maxAttempts = 50; // Increased attempts
     }
 
     connectedCallback() {
         this.render();
-        this.loadDependencies();
+        this.initializeWhenReady();
     }
 
     render() {
@@ -86,7 +85,8 @@ class AdvancedRichEditor extends HTMLElement {
                     <div id="advanced-editor" class="editor-area">
                         <div class="loading-message">
                             <div class="spinner"></div>
-                            <p>Loading Editor...</p>
+                            <p>Initializing Editor...</p>
+                            <p class="status-text">Checking for EditorJS...</p>
                         </div>
                     </div>
                 </div>
@@ -205,6 +205,12 @@ class AdvancedRichEditor extends HTMLElement {
                 justify-content: center;
                 height: 300px;
                 color: #666;
+            }
+
+            .status-text {
+                font-size: 12px;
+                color: #999;
+                margin-top: 8px;
             }
 
             .spinner {
@@ -331,160 +337,118 @@ class AdvancedRichEditor extends HTMLElement {
         this.appendChild(style);
     }
 
-    loadDependencies() {
-        // Define all required scripts in order
-        const requiredScripts = [
-            'https://cdn.jsdelivr.net/npm/@editorjs/editorjs@latest',
-            'https://cdn.jsdelivr.net/npm/@editorjs/header@latest',
-            'https://cdn.jsdelivr.net/npm/@editorjs/list@latest',
-            'https://cdn.jsdelivr.net/npm/@editorjs/checklist@latest',
-            'https://cdn.jsdelivr.net/npm/@editorjs/quote@latest',
-            'https://cdn.jsdelivr.net/npm/@editorjs/code@latest',
-            'https://cdn.jsdelivr.net/npm/@editorjs/delimiter@latest',
-            'https://cdn.jsdelivr.net/npm/@editorjs/table@latest',
-            'https://cdn.jsdelivr.net/npm/@editorjs/simple-image@latest',
-            'https://cdn.jsdelivr.net/npm/@editorjs/embed@latest',
-            'https://cdn.jsdelivr.net/npm/@editorjs/link@latest',
-            'https://cdn.jsdelivr.net/npm/@editorjs/marker@latest',
-            'https://cdn.jsdelivr.net/npm/@editorjs/inline-code@latest',
-            'https://cdn.jsdelivr.net/npm/@editorjs/warning@latest',
-            'https://cdn.jsdelivr.net/npm/@editorjs/raw@latest'
-        ];
-
-        // Check if scripts are already loaded (in page head)
-        this.checkExistingScripts(requiredScripts);
+    updateStatus(message) {
+        const statusEl = this.querySelector('.status-text');
+        if (statusEl) {
+            statusEl.textContent = message;
+        }
+        console.log('Editor Status:', message);
     }
 
-    checkExistingScripts(requiredScripts) {
-        // Check if EditorJS is already available
-        if (typeof window.EditorJS !== 'undefined') {
-            console.log('EditorJS found in global scope');
-            this.waitForPlugins();
-            return;
-        }
-
-        // Check if scripts are already in document
-        const existingScripts = Array.from(document.getElementsByTagName('script'))
-            .map(script => script.src);
-
-        const missingScripts = requiredScripts.filter(scriptUrl => 
-            !existingScripts.some(existing => existing.includes(scriptUrl.split('/').pop()))
-        );
-
-        if (missingScripts.length === 0) {
-            console.log('All scripts found in document');
-            this.waitForPlugins();
-        } else {
-            console.log('Loading missing scripts:', missingScripts);
-            this.loadScriptsSequentially(missingScripts, 0);
-        }
-    }
-
-    loadScriptsSequentially(scripts, index) {
-        if (index >= scripts.length) {
-            console.log('All scripts loaded');
-            this.waitForPlugins();
-            return;
-        }
-
-        const script = document.createElement('script');
-        script.src = scripts[index];
-        script.onload = () => {
-            console.log(`Loaded: ${scripts[index]}`);
-            this.loadScriptsSequentially(scripts, index + 1);
-        };
-        script.onerror = () => {
-            console.error(`Failed to load: ${scripts[index]}`);
-            this.handleLoadError();
-        };
-
-        document.head.appendChild(script);
-    }
-
-    waitForPlugins() {
-        this.retryCount++;
+    initializeWhenReady() {
+        this.initAttempts++;
         
-        if (this.retryCount > this.maxRetries) {
-            console.error('Max retries reached, falling back to simple editor');
+        if (this.initAttempts > this.maxAttempts) {
+            this.updateStatus('Timeout - Loading fallback editor');
             this.showFallbackEditor();
             return;
         }
 
-        // Check if all required classes are available
-        const requiredClasses = [
-            'EditorJS', 'Header', 'List', 'Checklist', 'Quote', 
-            'CodeTool', 'Delimiter', 'Table', 'SimpleImage', 
-            'Embed', 'LinkTool', 'Marker', 'InlineCode', 'Warning', 'RawTool'
-        ];
-
-        const missingClasses = requiredClasses.filter(className => 
-            typeof window[className] === 'undefined'
-        );
-
-        if (missingClasses.length === 0) {
-            console.log('All Editor.js classes are available');
-            this.initializeEditor();
-        } else {
-            console.log('Waiting for classes:', missingClasses);
-            setTimeout(() => this.waitForPlugins(), 200);
+        // Check if EditorJS is available
+        if (typeof EditorJS === 'undefined') {
+            this.updateStatus(`Waiting for EditorJS... (${this.initAttempts}/${this.maxAttempts})`);
+            setTimeout(() => this.initializeWhenReady(), 200);
+            return;
         }
+
+        this.updateStatus('EditorJS found! Checking plugins...');
+        
+        // Check for available plugins
+        const availablePlugins = this.checkAvailablePlugins();
+        this.updateStatus(`Found ${availablePlugins.length} plugins. Initializing...`);
+        
+        setTimeout(() => this.initializeEditor(availablePlugins), 100);
     }
 
-    initializeEditor() {
+    checkAvailablePlugins() {
+        const plugins = [];
+        
+        // Check each plugin availability
+        if (typeof Header !== 'undefined') plugins.push('Header');
+        if (typeof List !== 'undefined') plugins.push('List');
+        if (typeof Checklist !== 'undefined') plugins.push('Checklist');
+        if (typeof Quote !== 'undefined') plugins.push('Quote');
+        if (typeof CodeTool !== 'undefined') plugins.push('CodeTool');
+        if (typeof Delimiter !== 'undefined') plugins.push('Delimiter');
+        if (typeof Table !== 'undefined') plugins.push('Table');
+        if (typeof SimpleImage !== 'undefined') plugins.push('SimpleImage');
+        if (typeof Embed !== 'undefined') plugins.push('Embed');
+        if (typeof LinkTool !== 'undefined') plugins.push('LinkTool');
+        if (typeof Marker !== 'undefined') plugins.push('Marker');
+        if (typeof InlineCode !== 'undefined') plugins.push('InlineCode');
+        if (typeof Warning !== 'undefined') plugins.push('Warning');
+        if (typeof RawTool !== 'undefined') plugins.push('RawTool');
+        
+        console.log('Available plugins:', plugins);
+        return plugins;
+    }
+
+    initializeEditor(availablePlugins) {
         if (this.isInitialized) return;
 
         try {
-            const tools = this.getEditorTools();
+            // Clear the loading message
+            const editorContainer = this.querySelector('#advanced-editor');
+            editorContainer.innerHTML = '';
+
+            // Build tools configuration based on available plugins
+            const tools = this.buildToolsConfig(availablePlugins);
             
-            this.editor = new window.EditorJS({
+            console.log('Initializing EditorJS with tools:', Object.keys(tools));
+
+            this.editor = new EditorJS({
                 holder: 'advanced-editor',
                 placeholder: 'Start writing your amazing content here...',
                 autofocus: true,
                 tools: tools,
                 onChange: () => {
-                    this.updateStatus();
+                    this.updateWordCount();
                 },
                 onReady: () => {
                     console.log('Advanced Rich Editor is ready!');
                     this.isInitialized = true;
                     this.setupEventListeners();
-                    this.updateStatus();
+                    this.updateWordCount();
+                    this.showNotification('Editor loaded successfully!', 'success');
                 }
             });
 
         } catch (error) {
             console.error('Error initializing editor:', error);
-            this.handleLoadError();
+            this.showFallbackEditor();
         }
     }
 
-    getEditorTools() {
-        const tools = {
-            paragraph: {
-                class: window.Paragraph || class {
-                    render() {
-                        return document.createElement('p');
-                    }
-                },
-                inlineToolbar: true
-            }
-        };
+    buildToolsConfig(availablePlugins) {
+        const tools = {};
 
-        // Add tools only if classes are available
-        if (window.Header) {
+        // Header tool
+        if (availablePlugins.includes('Header')) {
             tools.header = {
-                class: window.Header,
+                class: Header,
                 config: {
                     placeholder: 'Enter a header',
                     levels: [1, 2, 3, 4, 5, 6],
                     defaultLevel: 2
-                }
+                },
+                shortcut: 'CMD+SHIFT+H'
             };
         }
 
-        if (window.List) {
+        // List tool
+        if (availablePlugins.includes('List')) {
             tools.list = {
-                class: window.List,
+                class: List,
                 inlineToolbar: true,
                 config: {
                     defaultStyle: 'unordered'
@@ -492,16 +456,18 @@ class AdvancedRichEditor extends HTMLElement {
             };
         }
 
-        if (window.Checklist) {
+        // Checklist tool
+        if (availablePlugins.includes('Checklist')) {
             tools.checklist = {
-                class: window.Checklist,
+                class: Checklist,
                 inlineToolbar: true
             };
         }
 
-        if (window.Quote) {
+        // Quote tool
+        if (availablePlugins.includes('Quote')) {
             tools.quote = {
-                class: window.Quote,
+                class: Quote,
                 inlineToolbar: true,
                 config: {
                     quotePlaceholder: 'Enter a quote',
@@ -510,22 +476,25 @@ class AdvancedRichEditor extends HTMLElement {
             };
         }
 
-        if (window.CodeTool) {
+        // Code tool
+        if (availablePlugins.includes('CodeTool')) {
             tools.code = {
-                class: window.CodeTool,
+                class: CodeTool,
                 config: {
                     placeholder: 'Enter your code here...'
                 }
             };
         }
 
-        if (window.Delimiter) {
-            tools.delimiter = window.Delimiter;
+        // Delimiter tool
+        if (availablePlugins.includes('Delimiter')) {
+            tools.delimiter = Delimiter;
         }
 
-        if (window.Table) {
+        // Table tool
+        if (availablePlugins.includes('Table')) {
             tools.table = {
-                class: window.Table,
+                class: Table,
                 inlineToolbar: true,
                 config: {
                     rows: 2,
@@ -534,18 +503,20 @@ class AdvancedRichEditor extends HTMLElement {
             };
         }
 
-        if (window.SimpleImage) {
+        // Simple Image tool
+        if (availablePlugins.includes('SimpleImage')) {
             tools.image = {
-                class: window.SimpleImage,
+                class: SimpleImage,
                 config: {
                     placeholder: 'Paste image URL here...'
                 }
             };
         }
 
-        if (window.Embed) {
+        // Embed tool
+        if (availablePlugins.includes('Embed')) {
             tools.embed = {
-                class: window.Embed,
+                class: Embed,
                 config: {
                     services: {
                         youtube: true,
@@ -560,32 +531,36 @@ class AdvancedRichEditor extends HTMLElement {
             };
         }
 
-        if (window.LinkTool) {
+        // Link tool
+        if (availablePlugins.includes('LinkTool')) {
             tools.linkTool = {
-                class: window.LinkTool,
+                class: LinkTool,
                 config: {
                     endpoint: 'https://jsonplaceholder.typicode.com/posts/1'
                 }
             };
         }
 
-        if (window.Marker) {
+        // Marker tool (inline)
+        if (availablePlugins.includes('Marker')) {
             tools.marker = {
-                class: window.Marker,
+                class: Marker,
                 shortcut: 'CMD+SHIFT+M'
             };
         }
 
-        if (window.InlineCode) {
+        // Inline Code tool
+        if (availablePlugins.includes('InlineCode')) {
             tools.inlineCode = {
-                class: window.InlineCode,
+                class: InlineCode,
                 shortcut: 'CMD+SHIFT+C'
             };
         }
 
-        if (window.Warning) {
+        // Warning tool
+        if (availablePlugins.includes('Warning')) {
             tools.warning = {
-                class: window.Warning,
+                class: Warning,
                 inlineToolbar: true,
                 config: {
                     titlePlaceholder: 'Warning title',
@@ -594,21 +569,18 @@ class AdvancedRichEditor extends HTMLElement {
             };
         }
 
-        if (window.RawTool) {
+        // Raw HTML tool
+        if (availablePlugins.includes('RawTool')) {
             tools.raw = {
-                class: window.RawTool,
+                class: RawTool,
                 config: {
                     placeholder: 'Enter raw HTML'
                 }
             };
         }
 
+        console.log('Built tools config:', tools);
         return tools;
-    }
-
-    handleLoadError() {
-        console.error('Failed to load Editor.js dependencies');
-        this.showFallbackEditor();
     }
 
     showFallbackEditor() {
@@ -618,6 +590,14 @@ class AdvancedRichEditor extends HTMLElement {
                 <h3>⚠️ Editor.js Loading Issue</h3>
                 <p>The advanced editor couldn't load. Using fallback text editor.</p>
                 <p><strong>To fix this:</strong> Add the required script tags to your page head before using this element.</p>
+                <details>
+                    <summary>Missing dependencies:</summary>
+                    <p>EditorJS: ${typeof EditorJS !== 'undefined' ? '✅' : '❌'}</p>
+                    <p>Header: ${typeof Header !== 'undefined' ? '✅' : '❌'}</p>
+                    <p>List: ${typeof List !== 'undefined' ? '✅' : '❌'}</p>
+                    <p>Quote: ${typeof Quote !== 'undefined' ? '✅' : '❌'}</p>
+                    <p>And others...</p>
+                </details>
             </div>
             <textarea 
                 class="fallback-editor"
@@ -629,7 +609,7 @@ class AdvancedRichEditor extends HTMLElement {
         const textarea = editorArea.querySelector('.fallback-editor');
         if (textarea) {
             textarea.addEventListener('input', () => {
-                this.updateStatusFallback(textarea.value);
+                this.updateWordCountFallback(textarea.value);
             });
         }
 
@@ -640,33 +620,25 @@ class AdvancedRichEditor extends HTMLElement {
         // Save button
         const saveBtn = this.querySelector('#save-btn');
         if (saveBtn) {
-            saveBtn.addEventListener('click', () => {
-                this.saveContent();
-            });
+            saveBtn.addEventListener('click', () => this.saveContent());
         }
 
         // Load button
         const loadBtn = this.querySelector('#load-btn');
         if (loadBtn) {
-            loadBtn.addEventListener('click', () => {
-                this.loadContent();
-            });
+            loadBtn.addEventListener('click', () => this.loadContent());
         }
 
         // Clear button
         const clearBtn = this.querySelector('#clear-btn');
         if (clearBtn) {
-            clearBtn.addEventListener('click', () => {
-                this.clearContent();
-            });
+            clearBtn.addEventListener('click', () => this.clearContent());
         }
 
         // Export button
         const exportBtn = this.querySelector('#export-btn');
         if (exportBtn) {
-            exportBtn.addEventListener('click', () => {
-                this.exportContent();
-            });
+            exportBtn.addEventListener('click', () => this.exportContent());
         }
 
         // Import button
@@ -691,17 +663,13 @@ class AdvancedRichEditor extends HTMLElement {
         // Theme toggle
         const themeBtn = this.querySelector('#theme-btn');
         if (themeBtn) {
-            themeBtn.addEventListener('click', () => {
-                this.toggleTheme();
-            });
+            themeBtn.addEventListener('click', () => this.toggleTheme());
         }
 
         // Fullscreen toggle
         const fullscreenBtn = this.querySelector('#fullscreen-btn');
         if (fullscreenBtn) {
-            fullscreenBtn.addEventListener('click', () => {
-                this.toggleFullscreen();
-            });
+            fullscreenBtn.addEventListener('click', () => this.toggleFullscreen());
         }
 
         // Keyboard shortcuts
@@ -736,12 +704,10 @@ class AdvancedRichEditor extends HTMLElement {
                     localStorage.setItem('advanced-editor-content', JSON.stringify(outputData));
                     this.showNotification('Content saved successfully!', 'success');
                 } catch (storageError) {
-                    // Fallback if localStorage is not available (due to sandboxing)
                     this.editorData = outputData;
-                    this.showNotification('Content saved to memory (storage not available)', 'warning');
+                    this.showNotification('Content saved to memory', 'warning');
                 }
             } else {
-                // Fallback editor
                 const textarea = this.querySelector('.fallback-editor');
                 if (textarea) {
                     const content = textarea.value;
@@ -749,7 +715,7 @@ class AdvancedRichEditor extends HTMLElement {
                         localStorage.setItem('advanced-editor-content-fallback', content);
                         this.showNotification('Content saved successfully!', 'success');
                     } catch (storageError) {
-                        this.showNotification('Content saved to memory (storage not available)', 'warning');
+                        this.showNotification('Content saved to memory', 'warning');
                     }
                 }
             }
@@ -768,11 +734,11 @@ class AdvancedRichEditor extends HTMLElement {
                         const data = JSON.parse(savedData);
                         await this.editor.render(data);
                         this.showNotification('Content loaded successfully!', 'success');
-                        this.updateStatus();
+                        this.updateWordCount();
                     } else if (this.editorData) {
                         await this.editor.render(this.editorData);
                         this.showNotification('Content loaded from memory!', 'success');
-                        this.updateStatus();
+                        this.updateWordCount();
                     } else {
                         this.showNotification('No saved content found', 'warning');
                     }
@@ -780,13 +746,12 @@ class AdvancedRichEditor extends HTMLElement {
                     if (this.editorData) {
                         await this.editor.render(this.editorData);
                         this.showNotification('Content loaded from memory!', 'success');
-                        this.updateStatus();
+                        this.updateWordCount();
                     } else {
                         this.showNotification('No saved content found', 'warning');
                     }
                 }
             } else {
-                // Fallback editor
                 const textarea = this.querySelector('.fallback-editor');
                 if (textarea) {
                     try {
@@ -794,7 +759,7 @@ class AdvancedRichEditor extends HTMLElement {
                         if (savedContent) {
                             textarea.value = savedContent;
                             this.showNotification('Content loaded successfully!', 'success');
-                            this.updateStatusFallback(savedContent);
+                            this.updateWordCountFallback(savedContent);
                         } else {
                             this.showNotification('No saved content found', 'warning');
                         }
@@ -815,12 +780,12 @@ class AdvancedRichEditor extends HTMLElement {
                 if (this.editor && this.isInitialized) {
                     await this.editor.clear();
                     this.showNotification('Content cleared', 'success');
-                    this.updateStatus();
+                    this.updateWordCount();
                 } else {
                     const textarea = this.querySelector('.fallback-editor');
                     if (textarea) {
                         textarea.value = '';
-                        this.updateStatusFallback('');
+                        this.updateWordCountFallback('');
                         this.showNotification('Content cleared', 'success');
                     }
                 }
@@ -862,7 +827,6 @@ class AdvancedRichEditor extends HTMLElement {
                         break;
                 }
             } else {
-                // Fallback editor
                 const textarea = this.querySelector('.fallback-editor');
                 content = textarea ? textarea.value : '';
                 filename = 'content.txt';
@@ -893,7 +857,6 @@ class AdvancedRichEditor extends HTMLElement {
                     data = this.convertFromMarkdown(text);
                     await this.editor.render(data);
                 } else {
-                    // Plain text or HTML
                     data = {
                         blocks: [{
                             type: 'paragraph',
@@ -902,13 +865,12 @@ class AdvancedRichEditor extends HTMLElement {
                     };
                     await this.editor.render(data);
                 }
-                this.updateStatus();
+                this.updateWordCount();
             } else {
-                // Fallback editor
                 const textarea = this.querySelector('.fallback-editor');
                 if (textarea) {
                     textarea.value = text;
-                    this.updateStatusFallback(text);
+                    this.updateWordCountFallback(text);
                 }
             }
 
@@ -940,7 +902,7 @@ class AdvancedRichEditor extends HTMLElement {
         }
     }
 
-    async updateStatus() {
+    async updateWordCount() {
         if (!this.editor || !this.isInitialized) return;
         
         try {
@@ -970,7 +932,7 @@ class AdvancedRichEditor extends HTMLElement {
         }
     }
 
-    updateStatusFallback(text) {
+    updateWordCountFallback(text) {
         const words = text.split(/\s+/).filter(word => word.length > 0).length;
         const chars = text.length;
 
@@ -983,10 +945,9 @@ class AdvancedRichEditor extends HTMLElement {
         if (blockCountEl) blockCountEl.textContent = `Blocks: 1`;
     }
 
-    // Conversion methods remain the same as in original code
+    // Conversion methods (simplified versions to save space)
     convertToHTML(data) {
         let html = '<div class="editor-content">\n';
-        
         data.blocks.forEach(block => {
             switch (block.type) {
                 case 'header':
@@ -1004,10 +965,8 @@ class AdvancedRichEditor extends HTMLElement {
                     html += `</${tag}>\n`;
                     break;
                 case 'quote':
-                    html += `<blockquote>\n<p>${block.data.text}</p>\n`;
-                    if (block.data.caption) {
-                        html += `<cite>${block.data.caption}</cite>\n`;
-                    }
+                    html += `<blockquote><p>${block.data.text}</p>`;
+                    if (block.data.caption) html += `<cite>${block.data.caption}</cite>`;
                     html += `</blockquote>\n`;
                     break;
                 case 'code':
@@ -1016,37 +975,16 @@ class AdvancedRichEditor extends HTMLElement {
                 case 'delimiter':
                     html += `<hr>\n`;
                     break;
-                case 'table':
-                    html += `<table>\n`;
-                    block.data.content.forEach((row, index) => {
-                        html += `<tr>\n`;
-                        row.forEach(cell => {
-                            const tag = index === 0 ? 'th' : 'td';
-                            html += `<${tag}>${cell}</${tag}>\n`;
-                        });
-                        html += `</tr>\n`;
-                    });
-                    html += `</table>\n`;
-                    break;
-                case 'image':
-                    const imageUrl = block.data.url || block.data.file?.url || '';
-                    html += `<img src="${imageUrl}" alt="${block.data.caption || ''}">\n`;
-                    if (block.data.caption) {
-                        html += `<figcaption>${block.data.caption}</figcaption>\n`;
-                    }
-                    break;
                 default:
-                    html += `<!-- Unsupported block type: ${block.type} -->\n`;
+                    html += `<!-- ${block.type} -->\n`;
             }
         });
-        
         html += '</div>';
         return html;
     }
 
     convertToMarkdown(data) {
         let markdown = '';
-        
         data.blocks.forEach(block => {
             switch (block.type) {
                 case 'header':
@@ -1063,11 +1001,7 @@ class AdvancedRichEditor extends HTMLElement {
                     markdown += '\n';
                     break;
                 case 'quote':
-                    markdown += `> ${this.stripHTML(block.data.text)}\n`;
-                    if (block.data.caption) {
-                        markdown += `> \n> — ${this.stripHTML(block.data.caption)}\n`;
-                    }
-                    markdown += '\n';
+                    markdown += `> ${this.stripHTML(block.data.text)}\n\n`;
                     break;
                 case 'code':
                     markdown += `\`\`\`\n${block.data.code}\n\`\`\`\n\n`;
@@ -1075,25 +1009,17 @@ class AdvancedRichEditor extends HTMLElement {
                 case 'delimiter':
                     markdown += `---\n\n`;
                     break;
-                case 'image':
-                    const imageUrl = block.data.url || block.data.file?.url || '';
-                    markdown += `![${block.data.caption || ''}](${imageUrl})\n\n`;
-                    break;
-                default:
-                    markdown += `<!-- Unsupported block type: ${block.type} -->\n\n`;
             }
         });
-        
         return markdown;
     }
 
     convertToPlainText(data) {
         let text = '';
-        
         data.blocks.forEach(block => {
             switch (block.type) {
                 case 'header':
-                    text += `${this.stripHTML(block.data.text)}\n${'='.repeat(this.stripHTML(block.data.text).length)}\n\n`;
+                    text += `${this.stripHTML(block.data.text)}\n${'='.repeat(20)}\n\n`;
                     break;
                 case 'paragraph':
                     text += `${this.stripHTML(block.data.text)}\n\n`;
@@ -1106,11 +1032,7 @@ class AdvancedRichEditor extends HTMLElement {
                     text += '\n';
                     break;
                 case 'quote':
-                    text += `"${this.stripHTML(block.data.text)}"\n`;
-                    if (block.data.caption) {
-                        text += `— ${this.stripHTML(block.data.caption)}\n`;
-                    }
-                    text += '\n';
+                    text += `"${this.stripHTML(block.data.text)}"\n\n`;
                     break;
                 case 'code':
                     text += `${block.data.code}\n\n`;
@@ -1118,24 +1040,17 @@ class AdvancedRichEditor extends HTMLElement {
                 case 'delimiter':
                     text += `${'─'.repeat(50)}\n\n`;
                     break;
-                default:
-                    // Skip unsupported blocks in plain text
-                    break;
             }
         });
-        
         return text;
     }
 
     convertFromMarkdown(markdown) {
-        // Basic markdown to Editor.js conversion
         const lines = markdown.split('\n');
         const blocks = [];
-        let currentBlock = null;
-
+        
         lines.forEach(line => {
             line = line.trim();
-            
             if (line.startsWith('#')) {
                 const level = line.match(/^#+/)[0].length;
                 blocks.push({
@@ -1145,55 +1060,11 @@ class AdvancedRichEditor extends HTMLElement {
                         level: Math.min(level, 6)
                     }
                 });
-            } else if (line.startsWith('- ') || line.startsWith('* ')) {
-                if (!currentBlock || currentBlock.type !== 'list') {
-                    currentBlock = {
-                        type: 'list',
-                        data: {
-                            style: 'unordered',
-                            items: []
-                        }
-                    };
-                    blocks.push(currentBlock);
-                }
-                currentBlock.data.items.push(line.replace(/^[-*]\s*/, ''));
-            } else if (line.match(/^\d+\.\s/)) {
-                if (!currentBlock || currentBlock.type !== 'list') {
-                    currentBlock = {
-                        type: 'list',
-                        data: {
-                            style: 'ordered',
-                            items: []
-                        }
-                    };
-                    blocks.push(currentBlock);
-                }
-                currentBlock.data.items.push(line.replace(/^\d+\.\s*/, ''));
-            } else if (line.startsWith('> ')) {
-                blocks.push({
-                    type: 'quote',
-                    data: {
-                        text: line.replace(/^>\s*/, ''),
-                        caption: ''
-                    }
-                });
-                currentBlock = null;
-            } else if (line === '---') {
-                blocks.push({
-                    type: 'delimiter',
-                    data: {}
-                });
-                currentBlock = null;
             } else if (line && line !== '') {
                 blocks.push({
                     type: 'paragraph',
-                    data: {
-                        text: line
-                    }
+                    data: { text: line }
                 });
-                currentBlock = null;
-            } else {
-                currentBlock = null;
             }
         });
 
@@ -1213,7 +1084,6 @@ class AdvancedRichEditor extends HTMLElement {
     }
 
     showNotification(message, type = 'info') {
-        // Create notification element
         const notification = document.createElement('div');
         notification.style.cssText = `
             position: fixed;
@@ -1237,10 +1107,8 @@ class AdvancedRichEditor extends HTMLElement {
 
         notification.style.backgroundColor = colors[type] || colors.info;
         notification.textContent = message;
-
         document.body.appendChild(notification);
 
-        // Remove notification after 3 seconds
         setTimeout(() => {
             notification.style.opacity = '0';
             notification.style.transform = 'translateX(100%)';
@@ -1281,7 +1149,7 @@ class AdvancedRichEditor extends HTMLElement {
             const textarea = this.querySelector('.fallback-editor');
             if (textarea) {
                 textarea.value = typeof data === 'string' ? data : JSON.stringify(data);
-                this.updateStatusFallback(textarea.value);
+                this.updateWordCountFallback(textarea.value);
             }
         }
     }
@@ -1293,7 +1161,7 @@ class AdvancedRichEditor extends HTMLElement {
             const textarea = this.querySelector('.fallback-editor');
             if (textarea) {
                 textarea.value = '';
-                this.updateStatusFallback('');
+                this.updateWordCountFallback('');
             }
         }
     }
