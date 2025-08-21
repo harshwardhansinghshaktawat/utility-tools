@@ -29,14 +29,14 @@ class ThemeColorGenerator extends HTMLElement {
                 }
 
                 .generator-container {
-                    max-width: 800px;
-                    margin: 0 auto;
-                    padding: 30px;
+                    width: 100%;
+                    margin: 0;
+                    padding: 30px 20px;
                     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
                     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    border-radius: 20px;
                     box-shadow: 0 20px 40px rgba(0,0,0,0.1);
                     color: white;
+                    min-height: 100vh;
                 }
 
                 .header {
@@ -174,8 +174,15 @@ class ThemeColorGenerator extends HTMLElement {
                 .color-title {
                     font-weight: 600;
                     font-size: 1.1rem;
-                    margin-bottom: 5px;
+                    margin-bottom: 3px;
                     color: #333;
+                }
+
+                .color-number {
+                    font-weight: 700;
+                    font-size: 0.9rem;
+                    color: #666;
+                    margin-bottom: 3px;
                 }
 
                 .color-hex {
@@ -189,6 +196,198 @@ class ThemeColorGenerator extends HTMLElement {
                     font-size: 0.8rem;
                     color: #888;
                     line-height: 1.4;
+                }
+
+                .demo-section {
+                    margin: 30px 0;
+                }
+
+                .demo-title {
+                    font-size: 1.8rem;
+                    font-weight: 600;
+                    margin-bottom: 20px;
+                    text-align: center;
+                    color: white;
+                }
+
+                .demo-website {
+                    background: white;
+                    border-radius: 15px;
+                    overflow: hidden;
+                    box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+                    margin: 0 auto;
+                    max-width: 1000px;
+                }
+
+                .demo-header {
+                    padding: 20px 30px;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    border-bottom: 1px solid;
+                }
+
+                .demo-logo {
+                    font-size: 1.5rem;
+                    font-weight: 700;
+                }
+
+                .demo-nav {
+                    display: flex;
+                    gap: 25px;
+                }
+
+                .demo-nav-link {
+                    text-decoration: none;
+                    font-weight: 500;
+                    transition: opacity 0.3s ease;
+                }
+
+                .demo-nav-link:hover {
+                    opacity: 0.7;
+                }
+
+                .demo-hero {
+                    padding: 60px 30px;
+                    text-align: center;
+                    background: linear-gradient(135deg, var(--color1) 0%, var(--color2) 100%);
+                }
+
+                .demo-hero h1 {
+                    font-size: 3rem;
+                    font-weight: 700;
+                    margin-bottom: 20px;
+                    line-height: 1.2;
+                }
+
+                .demo-hero p {
+                    font-size: 1.2rem;
+                    margin-bottom: 30px;
+                    max-width: 600px;
+                    margin-left: auto;
+                    margin-right: auto;
+                    line-height: 1.6;
+                }
+
+                .demo-buttons {
+                    display: flex;
+                    gap: 15px;
+                    justify-content: center;
+                    flex-wrap: wrap;
+                }
+
+                .demo-btn {
+                    padding: 12px 25px;
+                    border: none;
+                    border-radius: 8px;
+                    font-weight: 600;
+                    text-decoration: none;
+                    display: inline-block;
+                    transition: all 0.3s ease;
+                    cursor: pointer;
+                }
+
+                .demo-btn:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+                }
+
+                .demo-btn.primary {
+                    color: white;
+                }
+
+                .demo-btn.secondary {
+                    background: transparent;
+                    border: 2px solid;
+                }
+
+                .demo-btn.disabled {
+                    opacity: 0.6;
+                    cursor: not-allowed;
+                }
+
+                .demo-content {
+                    padding: 50px 30px;
+                    background: white;
+                }
+
+                .demo-cards {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+                    gap: 25px;
+                    margin-bottom: 40px;
+                }
+
+                .demo-card {
+                    padding: 25px;
+                    border-radius: 12px;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+                    transition: transform 0.3s ease;
+                }
+
+                .demo-card:hover {
+                    transform: translateY(-5px);
+                }
+
+                .demo-card h3 {
+                    font-size: 1.3rem;
+                    font-weight: 600;
+                    margin-bottom: 15px;
+                }
+
+                .demo-card p {
+                    line-height: 1.6;
+                    margin-bottom: 15px;
+                }
+
+                .demo-card .demo-link {
+                    text-decoration: none;
+                    font-weight: 600;
+                    transition: opacity 0.3s ease;
+                }
+
+                .demo-card .demo-link:hover {
+                    opacity: 0.7;
+                }
+
+                .demo-footer {
+                    padding: 30px;
+                    text-align: center;
+                    border-top: 1px solid;
+                }
+
+                @media (max-width: 768px) {
+                    .demo-header {
+                        padding: 15px 20px;
+                        flex-direction: column;
+                        gap: 15px;
+                    }
+                    
+                    .demo-nav {
+                        gap: 15px;
+                        flex-wrap: wrap;
+                        justify-content: center;
+                    }
+                    
+                    .demo-hero {
+                        padding: 40px 20px;
+                    }
+                    
+                    .demo-hero h1 {
+                        font-size: 2rem;
+                    }
+                    
+                    .demo-content {
+                        padding: 30px 20px;
+                    }
+                    
+                    .demo-cards {
+                        grid-template-columns: 1fr;
+                    }
+                    
+                    .demo-footer {
+                        padding: 20px;
+                    }
                 }
 
                 .accessibility-info {
@@ -253,7 +452,7 @@ class ThemeColorGenerator extends HTMLElement {
 
                 @media (max-width: 768px) {
                     .generator-container {
-                        padding: 20px;
+                        padding: 15px 10px;
                     }
                     
                     .title {
@@ -266,6 +465,11 @@ class ThemeColorGenerator extends HTMLElement {
                     
                     .colors-grid {
                         grid-template-columns: 1fr;
+                        gap: 15px;
+                    }
+                    
+                    .theme-selector {
+                        justify-content: center;
                     }
                 }
             </style>
@@ -293,6 +497,11 @@ class ThemeColorGenerator extends HTMLElement {
                 </div>
 
                 <div class="colors-grid" id="colorsGrid"></div>
+
+                <div class="demo-section">
+                    <h3 class="demo-title">🖥️ Website Preview</h3>
+                    <div class="demo-website" id="demoWebsite"></div>
+                </div>
 
                 <div class="accessibility-info">
                     <h3 class="accessibility-title">
@@ -346,125 +555,147 @@ class ThemeColorGenerator extends HTMLElement {
 
     generateModernTheme() {
         const baseHue = Math.floor(Math.random() * 360);
+        const satVariation = 10 + Math.floor(Math.random() * 20);
+        const lightVariation = 5 + Math.floor(Math.random() * 15);
+        const accentHue = (baseHue + 120 + Math.floor(Math.random() * 120)) % 360;
+        
         return {
-            color1: this.hslToHex(baseHue, 20, 95), // Primary background
-            color2: this.hslToHex(baseHue, 15, 90), // Secondary background
-            color3: this.hslToHex(baseHue, 10, 75), // Disabled state
-            color4: this.hslToHex(baseHue, 30, 45), // Secondary text
-            color5: this.hslToHex(baseHue, 40, 20), // Primary text
-            color6: this.hslToHex((baseHue + 180) % 360, 70, 50) // Links/actions
+            color1: this.hslToHex(baseHue, 15 + Math.floor(Math.random() * 10), 93 + Math.floor(Math.random() * 5)),
+            color2: this.hslToHex(baseHue + Math.floor(Math.random() * 20), 12 + Math.floor(Math.random() * 10), 88 + Math.floor(Math.random() * 5)),
+            color3: this.hslToHex(baseHue + Math.floor(Math.random() * 30), 8 + Math.floor(Math.random() * 15), 70 + Math.floor(Math.random() * 10)),
+            color4: this.hslToHex(baseHue + Math.floor(Math.random() * 25), 25 + Math.floor(Math.random() * 20), 40 + Math.floor(Math.random() * 15)),
+            color5: this.hslToHex(baseHue + Math.floor(Math.random() * 20), 35 + Math.floor(Math.random() * 15), 15 + Math.floor(Math.random() * 10)),
+            color6: this.hslToHex(accentHue, 60 + Math.floor(Math.random() * 25), 45 + Math.floor(Math.random() * 15))
         };
     }
 
     generateDarkTheme() {
         const baseHue = Math.floor(Math.random() * 360);
+        const accentHue = (baseHue + 90 + Math.floor(Math.random() * 180)) % 360;
+        
         return {
-            color1: this.hslToHex(baseHue, 25, 15), // Dark primary background
-            color2: this.hslToHex(baseHue, 20, 20), // Dark secondary background
-            color3: this.hslToHex(baseHue, 15, 35), // Disabled state
-            color4: this.hslToHex(baseHue, 10, 65), // Secondary text
-            color5: this.hslToHex(baseHue, 5, 90), // Primary text (light)
-            color6: this.hslToHex((baseHue + 120) % 360, 80, 70) // Bright links/actions
+            color1: this.hslToHex(baseHue, 20 + Math.floor(Math.random() * 15), 12 + Math.floor(Math.random() * 8)),
+            color2: this.hslToHex(baseHue + Math.floor(Math.random() * 25), 18 + Math.floor(Math.random() * 12), 18 + Math.floor(Math.random() * 8)),
+            color3: this.hslToHex(baseHue + Math.floor(Math.random() * 30), 12 + Math.floor(Math.random() * 10), 30 + Math.floor(Math.random() * 10)),
+            color4: this.hslToHex(baseHue + Math.floor(Math.random() * 20), 8 + Math.floor(Math.random() * 8), 60 + Math.floor(Math.random() * 10)),
+            color5: this.hslToHex(baseHue + Math.floor(Math.random() * 15), 5 + Math.floor(Math.random() * 5), 85 + Math.floor(Math.random() * 10)),
+            color6: this.hslToHex(accentHue, 70 + Math.floor(Math.random() * 20), 65 + Math.floor(Math.random() * 15))
         };
     }
 
     generateLightTheme() {
         const baseHue = Math.floor(Math.random() * 360);
+        const accentHue = (baseHue + 60 + Math.floor(Math.random() * 240)) % 360;
+        
         return {
-            color1: this.hslToHex(baseHue, 10, 98), // Very light background
-            color2: this.hslToHex(baseHue, 15, 94), // Light secondary background
-            color3: this.hslToHex(baseHue, 20, 80), // Disabled state
-            color4: this.hslToHex(baseHue, 25, 55), // Secondary text
-            color5: this.hslToHex(baseHue, 30, 25), // Dark primary text
-            color6: this.hslToHex((baseHue + 60) % 360, 70, 45) // Links/actions
+            color1: this.hslToHex(baseHue, 8 + Math.floor(Math.random() * 7), 96 + Math.floor(Math.random() * 3)),
+            color2: this.hslToHex(baseHue + Math.floor(Math.random() * 20), 12 + Math.floor(Math.random() * 8), 92 + Math.floor(Math.random() * 4)),
+            color3: this.hslToHex(baseHue + Math.floor(Math.random() * 25), 18 + Math.floor(Math.random() * 10), 75 + Math.floor(Math.random() * 10)),
+            color4: this.hslToHex(baseHue + Math.floor(Math.random() * 20), 22 + Math.floor(Math.random() * 15), 50 + Math.floor(Math.random() * 15)),
+            color5: this.hslToHex(baseHue + Math.floor(Math.random() * 15), 28 + Math.floor(Math.random() * 12), 20 + Math.floor(Math.random() * 10)),
+            color6: this.hslToHex(accentHue, 65 + Math.floor(Math.random() * 20), 40 + Math.floor(Math.random() * 15))
         };
     }
 
     generateSummerTheme() {
-        const summerHues = [45, 60, 180, 200]; // Yellows, blues
-        const baseHue = summerHues[Math.floor(Math.random() * summerHues.length)];
+        const summerHues = [30, 45, 60, 180, 200, 50, 170, 190]; // Extended yellows, blues
+        const baseHue = summerHues[Math.floor(Math.random() * summerHues.length)] + Math.floor(Math.random() * 30);
+        const accentHue = (baseHue + 90 + Math.floor(Math.random() * 180)) % 360;
+        
         return {
-            color1: this.hslToHex(baseHue, 30, 92),
-            color2: this.hslToHex(baseHue, 35, 88),
-            color3: this.hslToHex(baseHue, 25, 70),
-            color4: this.hslToHex(baseHue, 40, 50),
-            color5: this.hslToHex(baseHue, 45, 25),
-            color6: this.hslToHex((baseHue + 90) % 360, 80, 55)
+            color1: this.hslToHex(baseHue, 25 + Math.floor(Math.random() * 15), 90 + Math.floor(Math.random() * 5)),
+            color2: this.hslToHex(baseHue + Math.floor(Math.random() * 20), 30 + Math.floor(Math.random() * 15), 85 + Math.floor(Math.random() * 6)),
+            color3: this.hslToHex(baseHue + Math.floor(Math.random() * 25), 20 + Math.floor(Math.random() * 15), 65 + Math.floor(Math.random() * 12)),
+            color4: this.hslToHex(baseHue + Math.floor(Math.random() * 20), 35 + Math.floor(Math.random() * 20), 45 + Math.floor(Math.random() * 15)),
+            color5: this.hslToHex(baseHue + Math.floor(Math.random() * 15), 40 + Math.floor(Math.random() * 15), 20 + Math.floor(Math.random() * 10)),
+            color6: this.hslToHex(accentHue, 75 + Math.floor(Math.random() * 15), 50 + Math.floor(Math.random() * 15))
         };
     }
 
     generateAutumnTheme() {
-        const autumnHues = [20, 35, 10, 350]; // Oranges, reds, browns
-        const baseHue = autumnHues[Math.floor(Math.random() * autumnHues.length)];
+        const autumnHues = [10, 20, 35, 350, 25, 15, 340, 330]; // Extended oranges, reds, browns
+        const baseHue = autumnHues[Math.floor(Math.random() * autumnHues.length)] + Math.floor(Math.random() * 25);
+        const accentHue = (baseHue + 120 + Math.floor(Math.random() * 120)) % 360;
+        
         return {
-            color1: this.hslToHex(baseHue, 25, 90),
-            color2: this.hslToHex(baseHue, 30, 85),
-            color3: this.hslToHex(baseHue, 35, 65),
-            color4: this.hslToHex(baseHue, 40, 45),
-            color5: this.hslToHex(baseHue, 45, 20),
-            color6: this.hslToHex((baseHue + 150) % 360, 60, 50)
+            color1: this.hslToHex(baseHue, 20 + Math.floor(Math.random() * 15), 88 + Math.floor(Math.random() * 5)),
+            color2: this.hslToHex(baseHue + Math.floor(Math.random() * 20), 25 + Math.floor(Math.random() * 15), 82 + Math.floor(Math.random() * 6)),
+            color3: this.hslToHex(baseHue + Math.floor(Math.random() * 25), 30 + Math.floor(Math.random() * 15), 60 + Math.floor(Math.random() * 12)),
+            color4: this.hslToHex(baseHue + Math.floor(Math.random() * 20), 35 + Math.floor(Math.random() * 20), 40 + Math.floor(Math.random() * 15)),
+            color5: this.hslToHex(baseHue + Math.floor(Math.random() * 15), 40 + Math.floor(Math.random() * 15), 15 + Math.floor(Math.random() * 10)),
+            color6: this.hslToHex(accentHue, 55 + Math.floor(Math.random() * 20), 45 + Math.floor(Math.random() * 15))
         };
     }
 
     generateOceanTheme() {
-        const oceanHue = 200 + Math.floor(Math.random() * 40); // Blues and teals
+        const oceanHue = 180 + Math.floor(Math.random() * 80); // Extended blues and teals
+        const accentHue = (oceanHue + 150 + Math.floor(Math.random() * 120)) % 360;
+        
         return {
-            color1: this.hslToHex(oceanHue, 30, 94),
-            color2: this.hslToHex(oceanHue, 35, 88),
-            color3: this.hslToHex(oceanHue, 25, 70),
-            color4: this.hslToHex(oceanHue, 45, 45),
-            color5: this.hslToHex(oceanHue, 50, 20),
-            color6: this.hslToHex((oceanHue + 180) % 360, 70, 55)
+            color1: this.hslToHex(oceanHue, 25 + Math.floor(Math.random() * 15), 92 + Math.floor(Math.random() * 5)),
+            color2: this.hslToHex(oceanHue + Math.floor(Math.random() * 20), 30 + Math.floor(Math.random() * 15), 86 + Math.floor(Math.random() * 6)),
+            color3: this.hslToHex(oceanHue + Math.floor(Math.random() * 25), 20 + Math.floor(Math.random() * 15), 65 + Math.floor(Math.random() * 12)),
+            color4: this.hslToHex(oceanHue + Math.floor(Math.random() * 20), 40 + Math.floor(Math.random() * 20), 40 + Math.floor(Math.random() * 15)),
+            color5: this.hslToHex(oceanHue + Math.floor(Math.random() * 15), 45 + Math.floor(Math.random() * 15), 15 + Math.floor(Math.random() * 10)),
+            color6: this.hslToHex(accentHue, 65 + Math.floor(Math.random() * 20), 50 + Math.floor(Math.random() * 15))
         };
     }
 
     generateForestTheme() {
-        const forestHue = 90 + Math.floor(Math.random() * 60); // Greens
+        const forestHue = 80 + Math.floor(Math.random() * 80); // Extended greens
+        const accentHue = (forestHue + 200 + Math.floor(Math.random() * 120)) % 360;
+        
         return {
-            color1: this.hslToHex(forestHue, 25, 92),
-            color2: this.hslToHex(forestHue, 30, 87),
-            color3: this.hslToHex(forestHue, 20, 70),
-            color4: this.hslToHex(forestHue, 35, 45),
-            color5: this.hslToHex(forestHue, 40, 22),
-            color6: this.hslToHex((forestHue + 240) % 360, 65, 50)
+            color1: this.hslToHex(forestHue, 20 + Math.floor(Math.random() * 15), 90 + Math.floor(Math.random() * 5)),
+            color2: this.hslToHex(forestHue + Math.floor(Math.random() * 20), 25 + Math.floor(Math.random() * 15), 84 + Math.floor(Math.random() * 6)),
+            color3: this.hslToHex(forestHue + Math.floor(Math.random() * 25), 15 + Math.floor(Math.random() * 15), 65 + Math.floor(Math.random() * 12)),
+            color4: this.hslToHex(forestHue + Math.floor(Math.random() * 20), 30 + Math.floor(Math.random() * 20), 40 + Math.floor(Math.random() * 15)),
+            color5: this.hslToHex(forestHue + Math.floor(Math.random() * 15), 35 + Math.floor(Math.random() * 15), 17 + Math.floor(Math.random() * 10)),
+            color6: this.hslToHex(accentHue, 60 + Math.floor(Math.random() * 20), 45 + Math.floor(Math.random() * 15))
         };
     }
 
     generateSunsetTheme() {
-        const sunsetHues = [15, 25, 320, 340]; // Oranges, pinks
-        const baseHue = sunsetHues[Math.floor(Math.random() * sunsetHues.length)];
+        const sunsetHues = [5, 15, 25, 310, 320, 340, 350, 30]; // Extended oranges, pinks
+        const baseHue = sunsetHues[Math.floor(Math.random() * sunsetHues.length)] + Math.floor(Math.random() * 20);
+        const accentHue = (baseHue + 100 + Math.floor(Math.random() * 160)) % 360;
+        
         return {
-            color1: this.hslToHex(baseHue, 35, 90),
-            color2: this.hslToHex(baseHue, 40, 85),
-            color3: this.hslToHex(baseHue, 30, 68),
-            color4: this.hslToHex(baseHue, 45, 48),
-            color5: this.hslToHex(baseHue, 50, 25),
-            color6: this.hslToHex((baseHue + 120) % 360, 70, 52)
+            color1: this.hslToHex(baseHue, 30 + Math.floor(Math.random() * 15), 88 + Math.floor(Math.random() * 5)),
+            color2: this.hslToHex(baseHue + Math.floor(Math.random() * 20), 35 + Math.floor(Math.random() * 15), 82 + Math.floor(Math.random() * 6)),
+            color3: this.hslToHex(baseHue + Math.floor(Math.random() * 25), 25 + Math.floor(Math.random() * 15), 63 + Math.floor(Math.random() * 12)),
+            color4: this.hslToHex(baseHue + Math.floor(Math.random() * 20), 40 + Math.floor(Math.random() * 20), 43 + Math.floor(Math.random() * 15)),
+            color5: this.hslToHex(baseHue + Math.floor(Math.random() * 15), 45 + Math.floor(Math.random() * 15), 20 + Math.floor(Math.random() * 10)),
+            color6: this.hslToHex(accentHue, 65 + Math.floor(Math.random() * 20), 47 + Math.floor(Math.random() * 15))
         };
     }
 
     generateProfessionalTheme() {
-        const professionalHues = [220, 230, 240, 250]; // Blues and purples
-        const baseHue = professionalHues[Math.floor(Math.random() * professionalHues.length)];
+        const professionalHues = [210, 220, 230, 240, 250, 260, 200, 270]; // Extended blues and purples
+        const baseHue = professionalHues[Math.floor(Math.random() * professionalHues.length)] + Math.floor(Math.random() * 20);
+        const accentHue = (baseHue + 30 + Math.floor(Math.random() * 60)) % 360;
+        
         return {
-            color1: this.hslToHex(baseHue, 15, 96),
-            color2: this.hslToHex(baseHue, 18, 91),
-            color3: this.hslToHex(baseHue, 12, 75),
-            color4: this.hslToHex(baseHue, 25, 50),
-            color5: this.hslToHex(baseHue, 30, 25),
-            color6: this.hslToHex((baseHue + 30) % 360, 60, 48)
+            color1: this.hslToHex(baseHue, 12 + Math.floor(Math.random() * 8), 94 + Math.floor(Math.random() * 4)),
+            color2: this.hslToHex(baseHue + Math.floor(Math.random() * 15), 15 + Math.floor(Math.random() * 8), 89 + Math.floor(Math.random() * 4)),
+            color3: this.hslToHex(baseHue + Math.floor(Math.random() * 20), 10 + Math.floor(Math.random() * 8), 70 + Math.floor(Math.random() * 10)),
+            color4: this.hslToHex(baseHue + Math.floor(Math.random() * 15), 22 + Math.floor(Math.random() * 12), 45 + Math.floor(Math.random() * 15)),
+            color5: this.hslToHex(baseHue + Math.floor(Math.random() * 10), 27 + Math.floor(Math.random() * 8), 20 + Math.floor(Math.random() * 10)),
+            color6: this.hslToHex(accentHue, 55 + Math.floor(Math.random() * 15), 43 + Math.floor(Math.random() * 12))
         };
     }
 
     generateVibrantTheme() {
         const baseHue = Math.floor(Math.random() * 360);
+        const accentHue = (baseHue + 60 + Math.floor(Math.random() * 240)) % 360;
+        
         return {
-            color1: this.hslToHex(baseHue, 40, 88),
-            color2: this.hslToHex(baseHue, 45, 82),
-            color3: this.hslToHex(baseHue, 35, 65),
-            color4: this.hslToHex(baseHue, 55, 42),
-            color5: this.hslToHex(baseHue, 60, 22),
-            color6: this.hslToHex((baseHue + 90) % 360, 85, 55)
+            color1: this.hslToHex(baseHue, 35 + Math.floor(Math.random() * 20), 85 + Math.floor(Math.random() * 8)),
+            color2: this.hslToHex(baseHue + Math.floor(Math.random() * 25), 40 + Math.floor(Math.random() * 20), 79 + Math.floor(Math.random() * 8)),
+            color3: this.hslToHex(baseHue + Math.floor(Math.random() * 30), 30 + Math.floor(Math.random() * 15), 60 + Math.floor(Math.random() * 12)),
+            color4: this.hslToHex(baseHue + Math.floor(Math.random() * 20), 50 + Math.floor(Math.random() * 20), 37 + Math.floor(Math.random() * 15)),
+            color5: this.hslToHex(baseHue + Math.floor(Math.random() * 15), 55 + Math.floor(Math.random() * 15), 17 + Math.floor(Math.random() * 10)),
+            color6: this.hslToHex(accentHue, 80 + Math.floor(Math.random() * 15), 50 + Math.floor(Math.random() * 15))
         };
     }
 
@@ -476,6 +707,15 @@ class ThemeColorGenerator extends HTMLElement {
             color4: "Secondary Text",
             color5: "Primary Text",
             color6: "Links & Actions"
+        };
+
+        const colorNumbers = {
+            color1: "Color 1",
+            color2: "Color 2", 
+            color3: "Color 3",
+            color4: "Color 4",
+            color5: "Color 5",
+            color6: "Color 6"
         };
 
         const colorUsage = {
@@ -496,6 +736,7 @@ class ThemeColorGenerator extends HTMLElement {
             colorCard.innerHTML = `
                 <div class="color-preview" style="background-color: ${value}" data-color="${value}"></div>
                 <div class="color-info">
+                    <div class="color-number">${colorNumbers[key]}</div>
                     <div class="color-title">${colorDescriptions[key]}</div>
                     <div class="color-hex">${value.toUpperCase()}</div>
                     <div class="color-usage">${colorUsage[key]}</div>
@@ -510,6 +751,115 @@ class ThemeColorGenerator extends HTMLElement {
 
             grid.appendChild(colorCard);
         });
+
+        // Render demo website
+        this.renderDemoWebsite();
+    }
+
+    renderDemoWebsite() {
+        const demoContainer = this.shadowRoot.getElementById('demoWebsite');
+        const colors = this.generatedColors;
+        
+        demoContainer.innerHTML = `
+            <style>
+                .demo-website {
+                    --color1: ${colors.color1};
+                    --color2: ${colors.color2};
+                    --color3: ${colors.color3};
+                    --color4: ${colors.color4};
+                    --color5: ${colors.color5};
+                    --color6: ${colors.color6};
+                }
+            </style>
+            
+            <!-- Header -->
+            <div class="demo-header" style="background-color: ${colors.color1}; border-color: ${colors.color3};">
+                <div class="demo-logo" style="color: ${colors.color5};">
+                    YourBrand
+                </div>
+                <nav class="demo-nav">
+                    <a href="#" class="demo-nav-link" style="color: ${colors.color4};">Home</a>
+                    <a href="#" class="demo-nav-link" style="color: ${colors.color4};">About</a>
+                    <a href="#" class="demo-nav-link" style="color: ${colors.color4};">Services</a>
+                    <a href="#" class="demo-nav-link" style="color: ${colors.color6};">Contact</a>
+                </nav>
+            </div>
+
+            <!-- Hero Section -->
+            <div class="demo-hero">
+                <h1 style="color: ${colors.color5};">
+                    Welcome to Our Amazing Website
+                </h1>
+                <p style="color: ${colors.color4};">
+                    Discover incredible solutions that will transform your business and help you achieve your goals with our innovative approach.
+                </p>
+                <div class="demo-buttons">
+                    <button class="demo-btn primary" style="background-color: ${colors.color6};">
+                        Get Started
+                    </button>
+                    <button class="demo-btn secondary" style="color: ${colors.color6}; border-color: ${colors.color6};">
+                        Learn More
+                    </button>
+                    <button class="demo-btn disabled" style="background-color: ${colors.color3}; color: ${colors.color4};">
+                        Coming Soon
+                    </button>
+                </div>
+            </div>
+
+            <!-- Content Section -->
+            <div class="demo-content">
+                <div class="demo-cards">
+                    <div class="demo-card" style="background-color: ${colors.color1};">
+                        <h3 style="color: ${colors.color5};">Innovation</h3>
+                        <p style="color: ${colors.color4};">
+                            We bring cutting-edge technology and creative solutions to help your business thrive in today's competitive market.
+                        </p>
+                        <a href="#" class="demo-link" style="color: ${colors.color6};">
+                            Learn more →
+                        </a>
+                    </div>
+                    
+                    <div class="demo-card" style="background-color: ${colors.color2};">
+                        <h3 style="color: ${colors.color5};">Excellence</h3>
+                        <p style="color: ${colors.color4};">
+                            Our commitment to quality and attention to detail ensures that every project exceeds expectations.
+                        </p>
+                        <a href="#" class="demo-link" style="color: ${colors.color6};">
+                            View portfolio →
+                        </a>
+                    </div>
+                    
+                    <div class="demo-card" style="background-color: ${colors.color1};">
+                        <h3 style="color: ${colors.color5};">Support</h3>
+                        <p style="color: ${colors.color4};">
+                            24/7 customer support and dedicated account management to ensure your success every step of the way.
+                        </p>
+                        <a href="#" class="demo-link" style="color: ${colors.color6};">
+                            Contact us →
+                        </a>
+                    </div>
+                </div>
+                
+                <div style="text-align: center; margin-top: 40px;">
+                    <h2 style="color: ${colors.color5}; margin-bottom: 20px;">Ready to Get Started?</h2>
+                    <p style="color: ${colors.color4}; margin-bottom: 25px;">
+                        Join thousands of satisfied customers who have transformed their business with our solutions.
+                    </p>
+                    <button class="demo-btn primary" style="background-color: ${colors.color6}; font-size: 1.1rem; padding: 15px 30px;">
+                        Start Your Journey
+                    </button>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="demo-footer" style="background-color: ${colors.color2}; border-color: ${colors.color3};">
+                <p style="color: ${colors.color4};">
+                    © 2024 YourBrand. All rights reserved. | 
+                    <a href="#" style="color: ${colors.color6}; text-decoration: none;">Privacy Policy</a> | 
+                    <a href="#" style="color: ${colors.color6}; text-decoration: none;">Terms of Service</a>
+                </p>
+            </div>
+        `;
     }
 
     checkAccessibility() {
