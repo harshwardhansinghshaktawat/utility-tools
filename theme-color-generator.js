@@ -1,3 +1,9 @@
+/**
+ * Wix Custom Element: Theme Color Generator
+ * File name: theme-color-generator.js
+ * Custom element tag: <theme-color-generator></theme-color-generator>
+ */
+
 class ThemeColorGenerator extends HTMLElement {
     constructor() {
         super();
