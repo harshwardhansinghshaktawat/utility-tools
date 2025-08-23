@@ -50,161 +50,149 @@ class MultilingualTypingTool extends HTMLElement {
 
                 :host {
                     display: block;
-                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                    font-family: 'Courier New', monospace;
+                    width: 100%;
                 }
 
                 .typing-tool-container {
-                    max-width: 900px;
-                    margin: 0 auto;
-                    padding: 25px;
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
-                    border-radius: 25px;
-                    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
-                    position: relative;
-                    overflow: hidden;
+                    width: 100%;
+                    min-height: 100vh;
+                    background: #f5f5f5;
+                    border: 3px solid #333;
+                    padding: 20px;
                 }
 
-                .typing-tool-container::before {
-                    content: '';
-                    position: absolute;
-                    top: -50%;
-                    left: -50%;
-                    width: 200%;
-                    height: 200%;
-                    background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.1), transparent);
-                    animation: shimmer 4s infinite;
-                }
-
-                @keyframes shimmer {
-                    0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
-                    100% { transform: translateX(100%) translateY(100%) rotate(45deg); }
+                .header {
+                    text-align: center;
+                    margin-bottom: 20px;
+                    padding: 15px;
+                    background: #fff;
+                    border: 2px solid #333;
                 }
 
                 .language-selector {
-                    margin-bottom: 25px;
-                    position: relative;
-                    z-index: 1;
+                    margin-bottom: 20px;
+                    text-align: center;
                 }
 
                 .selector-label {
-                    color: rgba(255, 255, 255, 0.9);
-                    font-size: 1rem;
-                    font-weight: 600;
-                    margin-bottom: 10px;
+                    color: #333;
+                    font-size: 14px;
+                    font-weight: bold;
+                    margin-bottom: 8px;
                     display: block;
+                    text-transform: uppercase;
                 }
 
                 .language-dropdown {
-                    width: 100%;
-                    padding: 15px 20px;
-                    font-size: 1.1rem;
-                    font-weight: 600;
-                    border: none;
-                    border-radius: 15px;
-                    background: rgba(255, 255, 255, 0.95);
-                    backdrop-filter: blur(10px);
+                    width: 300px;
+                    max-width: 100%;
+                    padding: 10px;
+                    font-size: 14px;
+                    font-family: inherit;
+                    border: 2px solid #333;
+                    background: #fff;
                     color: #333;
                     cursor: pointer;
-                    transition: all 0.3s ease;
-                    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
                 }
 
                 .language-dropdown:focus {
                     outline: none;
-                    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.3);
-                    transform: translateY(-2px);
+                    background: #e0e0e0;
                 }
 
-                .language-dropdown option {
-                    padding: 10px;
-                    font-size: 1rem;
+                .main-content {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 20px;
+                    height: calc(100vh - 200px);
+                    min-height: 500px;
                 }
 
-                .input-section {
-                    background: rgba(255, 255, 255, 0.95);
-                    border-radius: 20px;
-                    padding: 30px;
-                    margin-bottom: 25px;
-                    backdrop-filter: blur(15px);
-                    box-shadow: inset 0 4px 15px rgba(0, 0, 0, 0.05);
-                    position: relative;
-                    z-index: 1;
+                .input-section,
+                .output-section {
+                    background: #fff;
+                    border: 2px solid #333;
+                    padding: 15px;
+                    display: flex;
+                    flex-direction: column;
                 }
 
-                .input-header {
+                .section-header {
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
-                    margin-bottom: 18px;
+                    margin-bottom: 15px;
+                    padding-bottom: 10px;
+                    border-bottom: 1px solid #ccc;
                 }
 
-                .input-label {
-                    font-weight: 700;
+                .section-label {
+                    font-weight: bold;
                     color: #333;
-                    font-size: 1.2rem;
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
+                    font-size: 14px;
+                    text-transform: uppercase;
+                    letter-spacing: 1px;
                 }
 
                 .char-counter {
-                    font-size: 0.9rem;
+                    font-size: 12px;
                     color: #666;
-                    display: flex;
-                    align-items: center;
-                    gap: 5px;
-                    background: #f8f9fa;
-                    padding: 6px 12px;
-                    border-radius: 20px;
+                    font-family: monospace;
                 }
 
-                .input-field {
+                .input-field,
+                .output-field {
+                    flex: 1;
                     width: 100%;
-                    min-height: 140px;
-                    padding: 20px;
-                    border: 3px solid #e8ecf4;
-                    border-radius: 15px;
-                    font-size: 1.15rem;
+                    padding: 15px;
+                    border: 1px solid #ccc;
+                    font-size: 16px;
                     font-family: inherit;
-                    resize: vertical;
-                    transition: all 0.3s ease;
-                    background: linear-gradient(145deg, #ffffff, #f8f9fa);
+                    resize: none;
+                    background: #fafafa;
                     line-height: 1.5;
                 }
 
                 .input-field:focus {
                     outline: none;
-                    border-color: #667eea;
-                    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
-                    transform: translateY(-3px);
-                    background: #ffffff;
+                    border-color: #333;
+                    background: #fff;
+                }
+
+                .output-field {
+                    font-family: Arial, sans-serif;
+                    background: #f9f9f9;
+                    direction: ltr;
+                }
+
+                .output-field.rtl {
+                    direction: rtl;
+                    text-align: right;
                 }
 
                 .suggestions-container {
                     position: relative;
-                    margin-top: 15px;
+                    margin-top: 10px;
                 }
 
                 .suggestions-list {
                     position: absolute;
-                    top: 100%;
+                    top: 0;
                     left: 0;
                     right: 0;
-                    background: white;
-                    border: 2px solid #e8ecf4;
-                    border-radius: 12px;
-                    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
-                    max-height: 250px;
+                    background: #fff;
+                    border: 2px solid #333;
+                    max-height: 200px;
                     overflow-y: auto;
                     z-index: 1000;
                     display: none;
                 }
 
                 .suggestion-item {
-                    padding: 15px 20px;
+                    padding: 10px 15px;
                     cursor: pointer;
-                    transition: all 0.2s ease;
-                    border-bottom: 1px solid #f0f4f8;
+                    border-bottom: 1px solid #eee;
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
@@ -216,154 +204,104 @@ class MultilingualTypingTool extends HTMLElement {
 
                 .suggestion-item:hover,
                 .suggestion-item.selected {
-                    background: linear-gradient(135deg, #667eea, #764ba2);
-                    color: white;
-                    transform: scale(1.02);
+                    background: #333;
+                    color: #fff;
                 }
 
                 .suggestion-text {
-                    font-size: 1.2rem;
-                    font-weight: 600;
+                    font-size: 16px;
+                    font-weight: bold;
                 }
 
                 .suggestion-english {
-                    font-size: 0.95rem;
-                    opacity: 0.8;
+                    font-size: 12px;
+                    opacity: 0.7;
                     font-style: italic;
-                }
-
-                .output-section {
-                    background: rgba(255, 255, 255, 0.95);
-                    border-radius: 20px;
-                    padding: 30px;
-                    backdrop-filter: blur(15px);
-                    box-shadow: inset 0 4px 15px rgba(0, 0, 0, 0.05);
-                    position: relative;
-                    z-index: 1;
-                }
-
-                .output-header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    margin-bottom: 18px;
-                    flex-wrap: wrap;
-                    gap: 15px;
-                }
-
-                .output-label {
-                    font-weight: 700;
-                    color: #333;
-                    font-size: 1.2rem;
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
                 }
 
                 .action-buttons {
                     display: flex;
-                    gap: 12px;
+                    gap: 10px;
+                    margin-top: 15px;
                     flex-wrap: wrap;
                 }
 
                 .btn {
-                    padding: 12px 20px;
-                    border: none;
-                    border-radius: 10px;
+                    padding: 8px 16px;
+                    border: 2px solid #333;
                     cursor: pointer;
-                    font-size: 0.95rem;
-                    font-weight: 600;
-                    transition: all 0.3s ease;
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
-                    white-space: nowrap;
+                    font-size: 12px;
+                    font-weight: bold;
+                    font-family: inherit;
+                    text-transform: uppercase;
+                    letter-spacing: 1px;
+                    transition: all 0.2s ease;
                 }
 
                 .btn-primary {
-                    background: linear-gradient(135deg, #667eea, #764ba2);
-                    color: white;
+                    background: #333;
+                    color: #fff;
                 }
 
                 .btn-secondary {
-                    background: #f8f9fa;
-                    color: #495057;
-                    border: 2px solid #e9ecef;
+                    background: #fff;
+                    color: #333;
                 }
 
                 .btn:hover {
-                    transform: translateY(-3px);
-                    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+                    background: #666;
+                    color: #fff;
                 }
 
                 .btn:active {
-                    transform: translateY(-1px);
-                }
-
-                .output-field {
-                    width: 100%;
-                    min-height: 140px;
-                    padding: 20px;
-                    border: 3px solid #e8ecf4;
-                    border-radius: 15px;
-                    font-size: 1.3rem;
-                    font-family: 'Noto Sans', serif;
-                    resize: vertical;
-                    background: linear-gradient(145deg, #ffffff, #f8f9fa);
-                    line-height: 1.7;
-                    direction: ltr;
-                }
-
-                .output-field.rtl {
-                    direction: rtl;
-                    text-align: right;
+                    transform: translateY(1px);
                 }
 
                 .keyboard-shortcuts {
                     margin-top: 20px;
-                    padding: 20px;
-                    background: rgba(255, 255, 255, 0.8);
-                    border-radius: 15px;
-                    font-size: 0.9rem;
+                    padding: 15px;
+                    background: #fff;
+                    border: 2px solid #333;
+                    font-size: 12px;
                     color: #666;
-                    position: relative;
-                    z-index: 1;
+                    text-align: center;
                 }
 
                 .shortcuts-title {
-                    font-weight: 700;
-                    margin-bottom: 12px;
+                    font-weight: bold;
+                    margin-bottom: 10px;
                     color: #333;
-                    font-size: 1rem;
+                    text-transform: uppercase;
                 }
 
                 .shortcut-item {
                     display: inline-block;
-                    margin: 3px 12px 3px 0;
+                    margin: 0 15px;
                 }
 
                 .shortcut-key {
-                    background: #e9ecef;
-                    padding: 4px 8px;
-                    border-radius: 6px;
+                    background: #eee;
+                    padding: 2px 6px;
+                    border: 1px solid #ccc;
                     font-family: monospace;
-                    font-size: 0.85rem;
-                    font-weight: 600;
+                    font-size: 11px;
+                    font-weight: bold;
                 }
 
                 .toast {
                     position: fixed;
-                    bottom: 30px;
-                    right: 30px;
-                    background: linear-gradient(135deg, #28a745, #20c997);
-                    color: white;
-                    padding: 15px 25px;
-                    border-radius: 10px;
-                    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
-                    transform: translateX(120%);
+                    top: 20px;
+                    right: 20px;
+                    background: #333;
+                    color: #fff;
+                    padding: 10px 20px;
+                    border: 2px solid #000;
+                    transform: translateX(100%);
                     transition: transform 0.3s ease;
                     z-index: 10000;
-                    font-weight: 600;
+                    font-family: inherit;
+                    font-size: 12px;
+                    text-transform: uppercase;
                 }
 
                 .toast.show {
@@ -371,112 +309,116 @@ class MultilingualTypingTool extends HTMLElement {
                 }
 
                 .toast.error {
-                    background: linear-gradient(135deg, #dc3545, #e74c3c);
+                    background: #cc0000;
                 }
 
                 .toast.warning {
-                    background: linear-gradient(135deg, #fd7e14, #f39c12);
+                    background: #ff6600;
                 }
 
-                .loading {
-                    display: inline-block;
-                    width: 20px;
-                    height: 20px;
-                    border: 2px solid rgba(255, 255, 255, 0.3);
-                    border-top: 2px solid #667eea;
-                    border-radius: 50%;
-                    animation: spin 1s linear infinite;
-                }
-
-                @keyframes spin {
-                    0% { transform: rotate(0deg); }
-                    100% { transform: rotate(360deg); }
+                .toast.success {
+                    background: #006600;
                 }
 
                 @media (max-width: 768px) {
+                    .main-content {
+                        grid-template-columns: 1fr;
+                        height: auto;
+                    }
+                    
+                    .language-dropdown {
+                        width: 100%;
+                    }
+                    
                     .typing-tool-container {
-                        margin: 15px;
-                        padding: 20px;
+                        padding: 15px;
                     }
-
-                    .input-section,
-                    .output-section {
-                        padding: 25px;
+                    
+                    .input-field,
+                    .output-field {
+                        min-height: 200px;
                     }
+                }
 
-                    .output-header {
+                @media (max-width: 480px) {
+                    .section-header {
                         flex-direction: column;
                         align-items: stretch;
+                        gap: 10px;
                     }
-
+                    
                     .action-buttons {
                         justify-content: center;
                     }
-
-                    .btn {
-                        flex: 1;
-                        justify-content: center;
+                    
+                    .shortcut-item {
+                        display: block;
+                        margin: 5px 0;
                     }
                 }
             </style>
 
             <div class="typing-tool-container">
-                <div class="language-selector">
-                    <label class="selector-label">🌐 Select Language</label>
-                    <select id="language-dropdown" class="language-dropdown">
-                        ${this.languages.map(lang => 
-                            `<option value="${lang.code}" ${lang.code === this.selectedLanguage ? 'selected' : ''}>
-                                ${lang.flag} ${lang.name} (${lang.nativeName})
-                            </option>`
-                        ).join('')}
-                    </select>
+                <div class="header">
+                    <div class="language-selector">
+                        <label class="selector-label">Select Language</label>
+                        <select id="language-dropdown" class="language-dropdown">
+                            ${this.languages.map(lang => 
+                                `<option value="${lang.code}" ${lang.code === this.selectedLanguage ? 'selected' : ''}>
+                                    ${lang.flag} ${lang.name} (${lang.nativeName})
+                                </option>`
+                            ).join('')}
+                        </select>
+                    </div>
                 </div>
 
-                <div class="input-section">
-                    <div class="input-header">
-                        <label class="input-label">✍️ English Input</label>
-                        <div class="char-counter">
-                            <span id="char-count">0</span> characters
+                <div class="main-content">
+                    <div class="input-section">
+                        <div class="section-header">
+                            <label class="section-label">English Input</label>
+                            <div class="char-counter">
+                                <span id="char-count">0</span> chars
+                            </div>
+                        </div>
+                        <textarea 
+                            id="english-input" 
+                            class="input-field" 
+                            placeholder="Type in English..."
+                            autocomplete="off"
+                            spellcheck="false"
+                        ></textarea>
+                        <div class="suggestions-container">
+                            <div id="suggestions-list" class="suggestions-list"></div>
                         </div>
                     </div>
-                    <textarea 
-                        id="english-input" 
-                        class="input-field" 
-                        placeholder="Type in English... (e.g., 'namaste' becomes 'नमस्ते' in Hindi)"
-                        autocomplete="off"
-                        spellcheck="false"
-                    ></textarea>
-                    <div class="suggestions-container">
-                        <div id="suggestions-list" class="suggestions-list"></div>
-                    </div>
-                </div>
 
-                <div class="output-section">
-                    <div class="output-header">
-                        <label class="output-label" id="output-label">🎯 Hindi Output</label>
+                    <div class="output-section">
+                        <div class="section-header">
+                            <label class="section-label" id="output-label">Hindi Output</label>
+                        </div>
+                        <textarea 
+                            id="output-field" 
+                            class="output-field" 
+                            placeholder="Transliterated text will appear here..."
+                            readonly
+                        ></textarea>
                         <div class="action-buttons">
                             <button id="copy-btn" class="btn btn-primary">
-                                📋 Copy
+                                Copy
                             </button>
                             <button id="clear-btn" class="btn btn-secondary">
-                                🗑️ Clear All
+                                Clear
                             </button>
                         </div>
                     </div>
-                    <textarea 
-                        id="output-field" 
-                        class="output-field" 
-                        placeholder="Transliterated text will appear here..."
-                        readonly
-                    ></textarea>
                 </div>
 
                 <div class="keyboard-shortcuts">
-                    <div class="shortcuts-title">⌨️ Keyboard Shortcuts</div>
-                    <span class="shortcut-item"><span class="shortcut-key">Ctrl+Enter</span> Copy Output</span>
-                    <span class="shortcut-item"><span class="shortcut-key">Ctrl+L</span> Clear All</span>
-                    <span class="shortcut-item"><span class="shortcut-key">↑↓</span> Navigate Suggestions</span>
-                    <span class="shortcut-item"><span class="shortcut-key">Tab/Enter</span> Select Suggestion</span>
+                    <div class="shortcuts-title">Keyboard Shortcuts</div>
+                    <span class="shortcut-item"><span class="shortcut-key">Ctrl+Enter</span> Copy</span>
+                    <span class="shortcut-item"><span class="shortcut-key">Ctrl+L</span> Clear</span>
+                    <span class="shortcut-item"><span class="shortcut-key">↑↓</span> Navigate</span>
+                    <span class="shortcut-item"><span class="shortcut-key">Tab/Enter</span> Select</span>
                 </div>
             </div>
 
@@ -500,7 +442,7 @@ class MultilingualTypingTool extends HTMLElement {
             const selectedLang = this.languages.find(lang => lang.code === this.selectedLanguage);
             
             // Update output label
-            outputLabel.innerHTML = `🎯 ${selectedLang.name} Output`;
+            outputLabel.textContent = `${selectedLang.name} Output`;
             
             // Update RTL direction for Arabic, Persian, Urdu
             const rtlLanguages = ['ar', 'fa', 'ur'];
@@ -516,7 +458,7 @@ class MultilingualTypingTool extends HTMLElement {
                 this.debounceTransliterate(text);
             }
             
-            this.showToast(`Switched to ${selectedLang.name} (${selectedLang.nativeName})`, 'success');
+            this.showToast(`Switched to ${selectedLang.name}`, 'success');
         });
 
         // Real-time transliteration
@@ -604,7 +546,7 @@ class MultilingualTypingTool extends HTMLElement {
 
         } catch (error) {
             console.error('Transliteration error:', error);
-            this.showToast('Error: Unable to transliterate. Please try again.', 'error');
+            this.showToast('Error: Unable to transliterate', 'error');
         }
     }
 
@@ -721,18 +663,18 @@ class MultilingualTypingTool extends HTMLElement {
         const text = outputField.value.trim();
 
         if (!text) {
-            this.showToast('No text to copy!', 'warning');
+            this.showToast('No text to copy', 'warning');
             return;
         }
 
         try {
             await navigator.clipboard.writeText(text);
-            this.showToast('✅ Copied to clipboard!', 'success');
+            this.showToast('Copied to clipboard', 'success');
         } catch (error) {
             // Fallback for older browsers
             outputField.select();
             document.execCommand('copy');
-            this.showToast('✅ Copied to clipboard!', 'success');
+            this.showToast('Copied to clipboard', 'success');
         }
     }
 
@@ -747,7 +689,7 @@ class MultilingualTypingTool extends HTMLElement {
         this.hideSuggestions();
         englishInput.focus();
         
-        this.showToast('🗑️ All text cleared!', 'success');
+        this.showToast('Text cleared', 'success');
     }
 
     showToast(message, type = 'success') {
@@ -758,7 +700,7 @@ class MultilingualTypingTool extends HTMLElement {
 
         setTimeout(() => {
             toast.classList.remove('show');
-        }, 3000);
+        }, 2000);
     }
 }
 
