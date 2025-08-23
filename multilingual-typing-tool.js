@@ -56,10 +56,13 @@ class MultilingualTypingTool extends HTMLElement {
 
                 .typing-tool-container {
                     width: 100%;
-                    min-height: 100vh;
+                    height: 100vh;
                     background: #f5f5f5;
                     border: 3px solid #333;
                     padding: 20px;
+                    display: flex;
+                    flex-direction: column;
+                    overflow: hidden;
                 }
 
                 .header {
@@ -68,6 +71,7 @@ class MultilingualTypingTool extends HTMLElement {
                     padding: 15px;
                     background: #fff;
                     border: 2px solid #333;
+                    flex-shrink: 0;
                 }
 
                 .language-selector {
@@ -105,8 +109,8 @@ class MultilingualTypingTool extends HTMLElement {
                     display: grid;
                     grid-template-columns: 1fr 1fr;
                     gap: 20px;
-                    height: calc(100vh - 200px);
-                    min-height: 500px;
+                    flex: 1;
+                    min-height: 0;
                 }
 
                 .input-section,
@@ -116,6 +120,8 @@ class MultilingualTypingTool extends HTMLElement {
                     padding: 15px;
                     display: flex;
                     flex-direction: column;
+                    min-height: 0;
+                    overflow: hidden;
                 }
 
                 .section-header {
@@ -125,6 +131,7 @@ class MultilingualTypingTool extends HTMLElement {
                     margin-bottom: 15px;
                     padding-bottom: 10px;
                     border-bottom: 1px solid #ccc;
+                    flex-shrink: 0;
                 }
 
                 .section-label {
@@ -152,6 +159,9 @@ class MultilingualTypingTool extends HTMLElement {
                     resize: none;
                     background: #fafafa;
                     line-height: 1.5;
+                    min-height: 0;
+                    height: 100%;
+                    overflow-y: auto;
                 }
 
                 .input-field:focus {
@@ -224,6 +234,7 @@ class MultilingualTypingTool extends HTMLElement {
                     gap: 10px;
                     margin-top: 15px;
                     flex-wrap: wrap;
+                    flex-shrink: 0;
                 }
 
                 .btn {
@@ -265,6 +276,7 @@ class MultilingualTypingTool extends HTMLElement {
                     font-size: 12px;
                     color: #666;
                     text-align: center;
+                    flex-shrink: 0;
                 }
 
                 .shortcuts-title {
