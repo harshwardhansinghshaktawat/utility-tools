@@ -23,42 +23,7 @@ class MemeGenerator extends HTMLElement {
         'Impact', 'Arial', 'Comic Sans MS', 'Helvetica', 'Times New Roman',
         'Courier New', 'Verdana', 'Georgia', 'Palatino', 'Garamond'
       ],
-      // CMS data will be populated here
-      cmsData: null,
-      // Fallback templates (used when no CMS data is available)
-      fallbackTemplates: [
-        {
-          id: 'drake',
-          name: 'Drake Hotline Bling',
-          url: 'https://i.imgflip.com/30b1gx.jpg',
-          layout: '2-vertical'
-        },
-        {
-          id: 'distracted-boyfriend',
-          name: 'Distracted Boyfriend',
-          url: 'https://i.imgflip.com/1ur9b0.jpg',
-          layout: '3-horizontal'
-        },
-        {
-          id: 'expanding-brain',
-          name: 'Expanding Brain',
-          url: 'https://i.imgflip.com/1jwhww.jpg',
-          layout: '4-vertical'
-        },
-        {
-          id: 'two-buttons',
-          name: 'Two Buttons',
-          url: 'https://i.imgflip.com/1g8my4.jpg',
-          layout: '2-button'
-        },
-        {
-          id: 'custom',
-          name: 'Custom Template',
-          url: '',
-          layout: 'custom'
-        }
-      ],
-      // Dynamic templates (populated from CMS or fallback)
+      // Templates will be populated from CMS via API
       templates: [],
       // Speech bubble definitions
       speechBubbleTypes: [
@@ -138,131 +103,31 @@ class MemeGenerator extends HTMLElement {
     // Flag to prevent multiple simultaneous downloads
     this.isDownloading = false;
 
-    // Initialize templates (will be updated when CMS data is available)
-    this.initializeTemplates();
-    
     // Initialize the UI
     this.initializeUI();
     this.setupEventListeners();
   }
 
-  // Static method to define observed attributes for CMS integration
-  static get observedAttributes() {
-    return ['data'];
-  }
-
-  // Handle attribute changes (for CMS data updates)
-  attributeChangedCallback(name, oldValue, newValue) {
-    if (name === 'data' && newValue !== oldValue) {
-      this.handleCMSData(newValue);
-    }
-  }
-
-  // Handle CMS data from Wix
-  handleCMSData(dataString) {
-    try {
-      // Parse the JSON data from Wix CMS
-      const cmsData = JSON.parse(dataString);
-      console.log('CMS Data received:', cmsData);
-      
-      this.state.cmsData = cmsData;
-      this.processCMSData(cmsData);
-    } catch (error) {
-      console.error('Error parsing CMS data:', error);
-      console.log('Raw data received:', dataString);
-      // Fall back to default templates if CMS data is invalid
-      this.initializeTemplates();
-    }
-  }
-
-  // Process CMS data and create template configuration
-  processCMSData(cmsData) {
-    // Reset templates array
-    this.state.templates = [];
-
-    // Check if we have the meme template image from current CMS item
-    if (cmsData && cmsData.memeTemplate) {
-      // Create template from current CMS item
-      const cmsTemplate = {
-        id: 'cms-current',
-        name: cmsData.title || cmsData.name || 'CMS Template',
-        url: this.extractImageUrl(cmsData.memeTemplate),
-        layout: cmsData.layout || '2-vertical', // Default layout or from CMS
-        source: 'cms'
-      };
-      
-      this.state.templates.push(cmsTemplate);
-      
-      // Auto-select the CMS template
-      this.state.selectedTemplate = 'cms-current';
-    }
-
-    // If CMS data contains a collection of templates
-    if (cmsData && cmsData.templates && Array.isArray(cmsData.templates)) {
-      cmsData.templates.forEach((template, index) => {
-        if (template.memeTemplate) {
-          this.state.templates.push({
-            id: `cms-${index}`,
-            name: template.title || template.name || `Template ${index + 1}`,
-            url: this.extractImageUrl(template.memeTemplate),
-            layout: template.layout || '2-vertical',
-            source: 'cms'
-          });
-        }
-      });
-    }
-
-    // Always add the custom option and fallback templates
-    this.state.templates.push({
-      id: 'custom',
-      name: 'Custom Template',
-      url: '',
-      layout: 'custom'
-    });
-
-    // Add fallback templates
-    this.state.templates.push(...this.state.fallbackTemplates.filter(t => t.id !== 'custom'));
-
-    // Update UI with new templates
+  // Public API method to set templates data
+  setTemplatesData(templates) {
+    this.state.templates = templates || [];
     this.loadTemplates();
     
-    // If we have a CMS template and it's selected, initialize it
-    if (this.state.selectedTemplate === 'cms-current') {
-      this.selectTemplate('cms-current');
+    // Auto-select first template if available
+    if (this.state.templates.length > 0 && !this.state.selectedTemplate) {
+      this.selectTemplate(this.state.templates[0].id);
     }
   }
 
-  // Extract image URL from CMS field (handles different Wix image field formats)
-  extractImageUrl(imageField) {
-    if (!imageField) return '';
-    
-    // Handle different possible formats of Wix image fields
-    if (typeof imageField === 'string') {
-      return imageField;
-    }
-    
-    // Handle Wix media object format
-    if (imageField.url) {
-      return imageField.url;
-    }
-    
-    // Handle array format (take first image)
-    if (Array.isArray(imageField) && imageField.length > 0) {
-      return imageField[0].url || imageField[0];
-    }
-    
-    // Handle nested object formats
-    if (imageField.src) {
-      return imageField.src;
-    }
-    
-    console.warn('Unknown image field format:', imageField);
-    return '';
-  }
-
-  // Initialize templates (fallback when no CMS data)
-  initializeTemplates() {
-    this.state.templates = [...this.state.fallbackTemplates];
+  // Public API method to get current state
+  getCurrentState() {
+    return {
+      selectedTemplate: this.state.selectedTemplate,
+      textLayers: this.state.textLayers,
+      shapes: this.state.shapes,
+      speechBubbles: this.state.speechBubbles,
+      uploadedImages: this.state.uploadedImages
+    };
   }
 
   // Save state for undo
@@ -750,6 +615,13 @@ class MemeGenerator extends HTMLElement {
           color: #2e7d32;
         }
 
+        .no-templates {
+          text-align: center;
+          padding: 40px 20px;
+          color: #666;
+          font-style: italic;
+        }
+
         /* Responsive styles */
         @media (max-width: 1200px) {
           .editor-container {
@@ -804,7 +676,9 @@ class MemeGenerator extends HTMLElement {
         </div>
 
         <!-- Templates row at the top -->
-        <div class="templates-row" id="templates-container"></div>
+        <div class="templates-row" id="templates-container">
+          <div class="no-templates">Loading templates...</div>
+        </div>
 
         <div class="editor-container">
           <!-- Left sidebar with text and shapes -->
@@ -912,9 +786,6 @@ class MemeGenerator extends HTMLElement {
       });
     });
 
-    // Load templates
-    this.loadTemplates();
-    
     // Load speech bubbles
     this.loadSpeechBubbles();
 
@@ -926,12 +797,14 @@ class MemeGenerator extends HTMLElement {
   loadTemplates() {
     this.templatesContainer.innerHTML = '';
 
-    // Show CMS status if we have CMS data
-    if (this.state.cmsData) {
-      this.cmsStatus.style.display = 'block';
-    } else {
+    if (this.state.templates.length === 0) {
+      this.templatesContainer.innerHTML = '<div class="no-templates">No templates available. Please add templates to your CMS collection.</div>';
       this.cmsStatus.style.display = 'none';
+      return;
     }
+
+    // Show CMS status if we have templates
+    this.cmsStatus.style.display = 'block';
 
     this.state.templates.forEach(template => {
       const templateElement = document.createElement('div');
@@ -947,7 +820,7 @@ class MemeGenerator extends HTMLElement {
       templateElement.innerHTML = `
         <img src="${imageUrl}" alt="${template.name}" onerror="this.style.display='none'">
         <span class="template-name">${template.name}</span>
-        ${template.source === 'cms' ? '<div class="cms-badge">CMS</div>' : ''}
+        <div class="cms-badge">CMS</div>
       `;
 
       templateElement.addEventListener('click', () => {
@@ -956,6 +829,21 @@ class MemeGenerator extends HTMLElement {
 
       this.templatesContainer.appendChild(templateElement);
     });
+
+    // Add custom template option
+    const customElement = document.createElement('div');
+    customElement.className = 'template-option';
+    customElement.dataset.id = 'custom';
+    customElement.innerHTML = `
+      <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" alt="Custom Template">
+      <span class="template-name">Custom Template</span>
+    `;
+    
+    customElement.addEventListener('click', () => {
+      this.selectTemplate('custom');
+    });
+    
+    this.templatesContainer.appendChild(customElement);
   }
 
   // Load available speech bubbles
@@ -1105,13 +993,13 @@ class MemeGenerator extends HTMLElement {
   selectTemplate(templateId) {
     this.state.selectedTemplate = templateId;
 
-    // Clear existing text layers if it's a predefined template
+    // Clear existing text layers if it's not a custom template
     if (templateId !== 'custom') {
       this.saveState();
       this.state.textLayers = [];
       this.state.shapes = [];
 
-      // Create default text layers based on template layout
+      // Find the selected template
       const template = this.state.templates.find(t => t.id === templateId);
 
       if (template && template.url) {
@@ -1136,13 +1024,17 @@ class MemeGenerator extends HTMLElement {
           } else if (template.layout === '2-button') {
             this.addTextLayer('BUTTON 1', 300, 180);
             this.addTextLayer('BUTTON 2', 300, 300);
+          } else {
+            // Default to 2-vertical for unknown layouts
+            this.addTextLayer('TOP TEXT', 300, 120);
+            this.addTextLayer('BOTTOM TEXT', 300, 480);
           }
 
           this.renderCanvas();
         };
         img.onerror = () => {
           console.error(`Failed to load template image: ${template.url}`);
-          alert('Failed to load template image. Please try another template or upload a custom image.');
+          alert('Failed to load template image. Please try another template or contact the administrator.');
         };
         img.src = template.url;
       }
@@ -2201,19 +2093,13 @@ class MemeGenerator extends HTMLElement {
 
   // Detect when element is connected to DOM
   connectedCallback() {
-    // Add default text when first connecting (only if no CMS data)
-    if (this.state.textLayers.length === 0 && !this.state.cmsData) {
+    // Add default text when first connecting (only if no templates)
+    if (this.state.textLayers.length === 0 && this.state.templates.length === 0) {
       this.addTextLayer();
     }
 
     // Preload fonts to prevent layout shifts
     this.preloadFonts();
-
-    // Check if there's a data attribute on initial load
-    const dataAttr = this.getAttribute('data');
-    if (dataAttr) {
-      this.handleCMSData(dataAttr);
-    }
   }
 
   // Preload fonts to avoid FOUT (Flash of Unstyled Text)
