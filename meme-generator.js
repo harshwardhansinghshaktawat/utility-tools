@@ -8,7 +8,7 @@ class MemeGenerator extends HTMLElement {
       selectedTemplate: null,
       textLayers: [],
       shapes: [],
-      speechBubbles: [], // Array to store added speech bubbles
+      speechBubbles: [],
       uploadedImages: [],
       canvasWidth: 600,
       canvasHeight: 600,
@@ -18,12 +18,12 @@ class MemeGenerator extends HTMLElement {
       selectedElement: null,
       dragOffsetX: 0,
       dragOffsetY: 0,
-      imageCache: {}, // Cache for loaded images
+      imageCache: {},
+      collapsedSections: {}, // Track collapsed sections
       fonts: [
         'Impact', 'Arial', 'Comic Sans MS', 'Helvetica', 'Times New Roman',
         'Courier New', 'Verdana', 'Georgia', 'Palatino', 'Garamond'
       ],
-      // Template configuration
       templates: [
         {
           id: 'drake',
@@ -56,7 +56,6 @@ class MemeGenerator extends HTMLElement {
           layout: 'custom'
         }
       ],
-      // Speech bubble definitions
       speechBubbleTypes: [
         {
           id: 'bubble1',
@@ -97,54 +96,20 @@ class MemeGenerator extends HTMLElement {
           id: 'bubble8',
           name: 'Speech Bubble 8',
           url: 'https://static.wixstatic.com/shapes/8874a0_71b37a33ab814d3da68e7ae62f068aa1.svg'
-        },
-        {
-          id: 'bubble9',
-          name: 'Speech Bubble 9',
-          url: 'https://static.wixstatic.com/shapes/8874a0_67a98c428cbd44c1a07b38bedf20e403.svg'
-        },
-        {
-          id: 'bubble10',
-          name: 'Speech Bubble 10',
-          url: 'https://static.wixstatic.com/shapes/8874a0_0b59203739e6485ca65bfdd06b6c4c61.svg'
-        },
-        {
-          id: 'bubble11',
-          name: 'Speech Bubble 11',
-          url: 'https://static.wixstatic.com/shapes/8874a0_ce61b19b3a9448f4be19ab89b234d9eb.svg'
-        },
-        {
-          id: 'bubble12',
-          name: 'Speech Bubble 12',
-          url: 'https://static.wixstatic.com/shapes/8874a0_700005366c824935acbbe2112062d112.svg'
-        },
-        {
-          id: 'bubble13',
-          name: 'Speech Bubble 13',
-          url: 'https://static.wixstatic.com/shapes/8874a0_9571d8aded6f453292827dab0f5805dc.svg'
-        },
-        {
-          id: 'bubble14',
-          name: 'Speech Bubble 14',
-          url: 'https://static.wixstatic.com/shapes/8874a0_400dd1a152034d309617f1a3d829131d.svg'
         }
       ]
     };
 
-    // Flag to prevent multiple simultaneous downloads
     this.isDownloading = false;
-
-    // Initialize the UI
     this.initializeUI();
     this.setupEventListeners();
   }
 
-  // CMS Integration - Watch for CMS template attributes
+  // CMS Integration
   static get observedAttributes() {
     return ['cms-template-url', 'cms-template-name', 'cms-template-layout'];
   }
 
-  // Handle CMS template data
   attributeChangedCallback(name, oldValue, newValue) {
     if (!newValue || oldValue === newValue) return;
 
@@ -157,14 +122,11 @@ class MemeGenerator extends HTMLElement {
     }
   }
 
-  // Set CMS template
   setCMSTemplate(imageUrl, templateName = 'CMS Template', layout = '2-vertical') {
     if (!imageUrl) return;
 
-    // Remove existing CMS template
     this.state.templates = this.state.templates.filter(t => t.id !== 'cms-template');
 
-    // Add CMS template at the beginning
     const cmsTemplate = {
       id: 'cms-template',
       name: templateName,
@@ -174,96 +136,13 @@ class MemeGenerator extends HTMLElement {
 
     this.state.templates.unshift(cmsTemplate);
     
-    // Reload templates and auto-select CMS template
     if (this.templatesContainer) {
       this.loadTemplates();
       this.selectTemplate('cms-template');
     }
   }
 
-  // Save state for undo
-  saveState() {
-    this.state.undoStack.push(JSON.stringify({
-      textLayers: this.state.textLayers,
-      shapes: this.state.shapes,
-      uploadedImages: this.state.uploadedImages,
-      speechBubbles: this.state.speechBubbles
-    }));
-
-    // Limit undo stack size
-    if (this.state.undoStack.length > 20) {
-      this.state.undoStack.shift();
-    }
-
-    // Clear redo stack when new changes are made
-    this.state.redoStack = [];
-  }
-
-  // Undo last change
-  undo() {
-    if (this.state.undoStack.length > 0) {
-      // Save current state to redo stack
-      this.state.redoStack.push(JSON.stringify({
-        textLayers: this.state.textLayers,
-        shapes: this.state.shapes,
-        uploadedImages: this.state.uploadedImages,
-        speechBubbles: this.state.speechBubbles
-      }));
-
-      // Restore previous state
-      const prevState = JSON.parse(this.state.undoStack.pop());
-      this.state.textLayers = prevState.textLayers;
-      this.state.shapes = prevState.shapes;
-      this.state.uploadedImages = prevState.uploadedImages;
-      this.state.speechBubbles = prevState.speechBubbles || [];
-
-      this.renderCanvas();
-      this.renderTextLayersUI();
-      this.renderImageLayersUI();
-      this.renderShapeLayersUI();
-      this.renderSpeechBubblesUI();
-      this.updateUndoRedoButtons();
-    }
-  }
-
-  // Redo last undone change
-  redo() {
-    if (this.state.redoStack.length > 0) {
-      // Save current state to undo stack
-      this.state.undoStack.push(JSON.stringify({
-        textLayers: this.state.textLayers,
-        shapes: this.state.shapes,
-        uploadedImages: this.state.uploadedImages,
-        speechBubbles: this.state.speechBubbles
-      }));
-
-      // Restore redone state
-      const redoneState = JSON.parse(this.state.redoStack.pop());
-      this.state.textLayers = redoneState.textLayers;
-      this.state.shapes = redoneState.shapes;
-      this.state.uploadedImages = redoneState.uploadedImages;
-      this.state.speechBubbles = redoneState.speechBubbles || [];
-
-      this.renderCanvas();
-      this.renderTextLayersUI();
-      this.renderImageLayersUI();
-      this.renderShapeLayersUI();
-      this.renderSpeechBubblesUI();
-      this.updateUndoRedoButtons();
-    }
-  }
-
-  // Check if canvas is tainted (for CORS issues)
-  isCanvasTainted() {
-    try {
-      this.canvas.toDataURL('image/png');
-      return false;
-    } catch (error) {
-      return error.name === 'SecurityError';
-    }
-  }
-
-  // Initialize the UI components
+  // Initialize the UI components with improved, compact design
   initializeUI() {
     this.shadowRoot.innerHTML = `
       <style>
@@ -277,8 +156,10 @@ class MemeGenerator extends HTMLElement {
           --light-color: #ecf0f1;
           --success-color: #2ecc71;
           --danger-color: #e74c3c;
-          --border-radius: 4px;
-          --shadow: 0 2px 5px rgba(0,0,0,0.1);
+          --border-radius: 6px;
+          --shadow: 0 1px 3px rgba(0,0,0,0.1);
+          --border: 1px solid #e1e5e9;
+          font-size: 14px;
         }
 
         .meme-generator-container {
@@ -286,106 +167,52 @@ class MemeGenerator extends HTMLElement {
           margin: 0 auto;
           display: flex;
           flex-direction: column;
-          gap: 20px;
-          padding: 20px;
-          background-color: #f9f9f9;
+          gap: 15px;
+          padding: 15px;
+          background-color: #f8f9fa;
           border-radius: 8px;
-          box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
 
+        /* Compact Templates Row */
         .templates-row {
           display: flex;
           flex-wrap: nowrap;
           overflow-x: auto;
-          padding: 10px;
+          padding: 8px;
           background-color: white;
           border-radius: var(--border-radius);
           box-shadow: var(--shadow);
-          margin-bottom: 10px;
-          width: 100%;
+          border: var(--border);
           scrollbar-width: thin;
         }
         
         .templates-row::-webkit-scrollbar {
-          height: 6px;
+          height: 4px;
         }
         
         .templates-row::-webkit-scrollbar-thumb {
           background-color: #ccc;
-          border-radius: 3px;
-        }
-        
-        .templates-row::-webkit-scrollbar-track {
-          background-color: #f1f1f1;
-        }
-
-        .editor-container {
-          display: grid;
-          grid-template-columns: minmax(250px, 1fr) minmax(300px, 2fr) minmax(200px, 1fr);
-          gap: 20px;
-          width: 100%;
-        }
-
-        .sidebar {
-          background-color: white;
-          border-radius: var(--border-radius);
-          box-shadow: var(--shadow);
-          padding: 15px;
-          max-height: 700px;
-          overflow-y: auto;
-          width: 100%;
-        }
-
-        .canvas-container {
-          background-color: white;
-          border-radius: var(--border-radius);
-          box-shadow: var(--shadow);
-          padding: 20px;
-          text-align: center;
-          position: relative;
-        }
-
-        #meme-canvas {
-          background-color: #f0f0f0;
-          border: 1px solid #ddd;
-          max-width: 100%;
-          height: auto;
-          margin-bottom: 15px;
-        }
-
-        #buffer-canvas {
-          display: none;
-        }
-
-        .control-group {
-          margin-bottom: 20px;
-        }
-
-        .control-group h3 {
-          margin-top: 0;
-          margin-bottom: 10px;
-          color: var(--dark-color);
-          font-size: 16px;
-          border-bottom: 1px solid #eee;
-          padding-bottom: 5px;
+          border-radius: 2px;
         }
 
         .template-option {
           display: flex;
           flex-direction: column;
           align-items: center;
-          padding: 8px;
-          margin-right: 8px;
+          padding: 6px;
+          margin-right: 6px;
           border-radius: var(--border-radius);
-          border: 1px solid #eee;
+          border: var(--border);
           cursor: pointer;
           transition: all 0.2s;
-          min-width: 120px;
-          height: 120px;
+          min-width: 80px;
+          flex-shrink: 0;
         }
 
         .template-option:hover {
           background-color: #f5f5f5;
+          transform: translateY(-1px);
         }
 
         .template-option.selected {
@@ -394,7 +221,6 @@ class MemeGenerator extends HTMLElement {
           border-color: var(--primary-color);
         }
 
-        /* Special styling for CMS templates */
         .template-option.cms-template {
           border: 2px solid var(--success-color);
         }
@@ -405,15 +231,15 @@ class MemeGenerator extends HTMLElement {
         }
 
         .template-option img {
-          width: 80px;
-          height: 80px;
+          width: 50px;
+          height: 50px;
           object-fit: cover;
-          margin-bottom: 8px;
-          border-radius: 4px;
+          margin-bottom: 4px;
+          border-radius: 3px;
         }
 
         .template-option .template-name {
-          font-size: 12px;
+          font-size: 10px;
           text-align: center;
           width: 100%;
           overflow: hidden;
@@ -421,52 +247,162 @@ class MemeGenerator extends HTMLElement {
           white-space: nowrap;
         }
 
+        /* Improved Grid Layout */
+        .editor-container {
+          display: grid;
+          grid-template-columns: minmax(280px, 350px) 1fr minmax(280px, 350px);
+          gap: 15px;
+          width: 100%;
+          min-height: 500px;
+        }
+
+        /* Compact Sidebar Design */
+        .sidebar {
+          background-color: white;
+          border-radius: var(--border-radius);
+          box-shadow: var(--shadow);
+          border: var(--border);
+          padding: 12px;
+          max-height: 600px;
+          overflow-y: auto;
+          scrollbar-width: thin;
+        }
+
+        .sidebar::-webkit-scrollbar {
+          width: 4px;
+        }
+
+        .sidebar::-webkit-scrollbar-thumb {
+          background-color: #ccc;
+          border-radius: 2px;
+        }
+
+        /* Canvas Container */
+        .canvas-container {
+          background-color: white;
+          border-radius: var(--border-radius);
+          box-shadow: var(--shadow);
+          border: var(--border);
+          padding: 15px;
+          text-align: center;
+          display: flex;
+          flex-direction: column;
+          justify-content: flex-start;
+        }
+
+        #meme-canvas {
+          background-color: #f0f0f0;
+          border: 1px solid #ddd;
+          border-radius: var(--border-radius);
+          max-width: 100%;
+          height: auto;
+          margin: 10px 0;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        #buffer-canvas {
+          display: none;
+        }
+
+        /* Collapsible Control Groups */
+        .control-group {
+          margin-bottom: 12px;
+          border: var(--border);
+          border-radius: var(--border-radius);
+          overflow: hidden;
+        }
+
+        .control-group-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 8px 12px;
+          background-color: #f8f9fa;
+          cursor: pointer;
+          user-select: none;
+          transition: background-color 0.2s;
+          border-bottom: var(--border);
+        }
+
+        .control-group-header:hover {
+          background-color: #e9ecef;
+        }
+
+        .control-group-header h3 {
+          margin: 0;
+          color: var(--dark-color);
+          font-size: 13px;
+          font-weight: 600;
+        }
+
+        .control-group-header .toggle-icon {
+          font-size: 12px;
+          transition: transform 0.2s;
+        }
+
+        .control-group-header.collapsed .toggle-icon {
+          transform: rotate(-90deg);
+        }
+
+        .control-group-content {
+          padding: 12px;
+          background-color: white;
+        }
+
+        .control-group-content.collapsed {
+          display: none;
+        }
+
+        /* Compact Speech Bubbles Grid */
         .speech-bubbles-grid {
           display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 8px;
-          margin-bottom: 15px;
-          width: 100%;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 6px;
+          margin-bottom: 12px;
         }
 
         .speech-bubble-option {
-          width: 100%;
           aspect-ratio: 1/1;
-          margin: 0;
-          border: 1px solid #ddd;
+          border: var(--border);
           border-radius: var(--border-radius);
           overflow: hidden;
           cursor: pointer;
           transition: all 0.2s;
+          background-color: #f8f9fa;
         }
 
         .speech-bubble-option:hover {
           border-color: var(--primary-color);
           transform: scale(1.05);
+          box-shadow: var(--shadow);
         }
 
         .speech-bubble-option img {
           width: 100%;
           height: 100%;
           object-fit: contain;
-          padding: 5px;
+          padding: 3px;
         }
 
+        /* Compact Form Elements */
         button {
-          padding: 8px 14px;
+          padding: 6px 12px;
           background-color: var(--primary-color);
           color: white;
           border: none;
           border-radius: var(--border-radius);
           cursor: pointer;
-          font-size: 14px;
-          transition: background-color 0.2s;
-          margin-right: 5px;
-          margin-bottom: 5px;
+          font-size: 12px;
+          font-weight: 500;
+          transition: all 0.2s;
+          margin: 2px;
+          min-height: 28px;
         }
 
         button:hover {
           background-color: #3a76d8;
+          transform: translateY(-1px);
+          box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
 
         button.danger {
@@ -485,142 +421,184 @@ class MemeGenerator extends HTMLElement {
           background-color: #27ae60;
         }
 
-        button.secondary {
-          background-color: var(--secondary-color);
-        }
-
-        button.secondary:hover {
-          background-color: #e67e22;
-        }
-
-        button.neutral {
-          background-color: #95a5a6;
-        }
-
-        button.neutral:hover {
-          background-color: #7f8c8d;
-        }
-
         button:disabled {
           background-color: #bdc3c7;
           cursor: not-allowed;
+          transform: none;
+          box-shadow: none;
+        }
+
+        button.icon-btn {
+          padding: 4px 6px;
+          font-size: 10px;
+          min-height: 24px;
+        }
+
+        .btn-group {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 4px;
+          margin-bottom: 8px;
         }
 
         label {
           display: block;
-          margin-bottom: 5px;
-          font-size: 14px;
+          margin-bottom: 3px;
+          margin-top: 6px;
+          font-size: 11px;
+          font-weight: 500;
           color: var(--dark-color);
         }
 
         input, select {
           width: 100%;
-          padding: 8px;
-          margin-bottom: 10px;
-          border: 1px solid #ddd;
+          padding: 6px 8px;
+          margin-bottom: 6px;
+          border: var(--border);
           border-radius: var(--border-radius);
-          font-size: 14px;
+          font-size: 12px;
+          transition: border-color 0.2s;
+          box-sizing: border-box;
+        }
+
+        input:focus, select:focus {
+          outline: none;
+          border-color: var(--primary-color);
+          box-shadow: 0 0 0 2px rgba(74, 134, 232, 0.2);
         }
 
         input[type="color"] {
-          height: 40px;
+          height: 32px;
           padding: 2px;
+          cursor: pointer;
         }
 
-        .canvas-controls {
-          display: flex;
-          justify-content: center;
-          flex-wrap: wrap;
-          gap: 10px;
-          margin-top: 15px;
+        input[type="range"] {
+          padding: 0;
+          margin-bottom: 4px;
         }
 
-        .text-layer-item, .image-layer-item, .shape-layer-item, .speech-bubble-layer-item {
-          padding: 10px;
-          background-color: #f9f9f9;
+        /* Compact Layer Items */
+        .layer-item {
+          padding: 8px;
+          background-color: #f8f9fa;
           border-radius: var(--border-radius);
-          margin-bottom: 10px;
-          border: 1px solid #eee;
-          position: relative;
+          margin-bottom: 8px;
+          border: var(--border);
         }
 
         .layer-item-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: 8px;
+          margin-bottom: 6px;
         }
 
         .layer-item-header h4 {
           margin: 0;
-          font-size: 14px;
+          font-size: 12px;
+          font-weight: 600;
+          color: var(--dark-color);
         }
 
         .layer-actions {
           display: flex;
-          gap: 5px;
+          gap: 3px;
         }
 
-        .layer-actions button {
-          padding: 3px 6px;
-          font-size: 12px;
+        /* Compact Controls */
+        .compact-row {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 8px;
+          align-items: end;
         }
 
-        .history-controls {
-          display: flex;
-          justify-content: center;
-          gap: 10px;
-          margin-bottom: 10px;
+        .compact-row.three-col {
+          grid-template-columns: 1fr 1fr 1fr;
+        }
+
+        .value-display {
+          font-size: 10px;
+          color: #666;
+          font-weight: 500;
         }
 
         .color-preview {
           display: inline-block;
-          width: 20px;
-          height: 20px;
+          width: 16px;
+          height: 16px;
           border-radius: 50%;
-          margin-right: 5px;
+          margin-right: 6px;
           border: 1px solid #ddd;
+          vertical-align: middle;
+        }
+
+        /* History and Export Controls */
+        .history-controls {
+          display: flex;
+          justify-content: center;
+          gap: 8px;
+          margin-bottom: 10px;
+        }
+
+        .canvas-controls {
+          display: flex;
+          justify-content: center;
+          gap: 8px;
+          margin-top: 10px;
         }
 
         .export-options {
           display: flex;
-          flex-wrap: wrap;
-          gap: 10px;
+          gap: 8px;
           justify-content: center;
           margin-top: 10px;
         }
 
         .custom-file-upload {
-          border: 1px solid #ddd;
-          display: inline-block;
-          padding: 6px 12px;
+          border: var(--border);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 8px;
           cursor: pointer;
-          background-color: #f9f9f9;
+          background-color: #f8f9fa;
           border-radius: var(--border-radius);
-          width: 100%;
-          text-align: center;
-          margin-bottom: 10px;
+          margin-bottom: 8px;
+          transition: all 0.2s;
+          font-size: 12px;
+          min-height: 32px;
+        }
+
+        .custom-file-upload:hover {
+          background-color: #e9ecef;
+          border-color: var(--primary-color);
         }
 
         #file-upload {
           display: none;
         }
 
-        /* Responsive styles */
+        /* Responsive Design */
         @media (max-width: 1200px) {
           .editor-container {
-            grid-template-columns: minmax(220px, 1fr) minmax(300px, 2fr) minmax(180px, 1fr);
+            grid-template-columns: minmax(250px, 300px) 1fr minmax(250px, 300px);
+          }
+          
+          .speech-bubbles-grid {
+            grid-template-columns: repeat(3, 1fr);
           }
         }
-        
+
         @media (max-width: 992px) {
           .editor-container {
-            grid-template-columns: minmax(200px, 1fr) minmax(300px, 2fr);
+            grid-template-columns: 1fr;
+            gap: 12px;
           }
 
-          .speech-bubbles-sidebar {
-            grid-column: 1 / -1;
-            grid-row: 2;
+          .sidebar {
+            max-height: none;
           }
 
           .speech-bubbles-grid {
@@ -629,104 +607,169 @@ class MemeGenerator extends HTMLElement {
         }
 
         @media (max-width: 768px) {
-          .editor-container {
-            grid-template-columns: 1fr;
-          }
-
-          .sidebar {
-            max-height: none;
+          .meme-generator-container {
+            padding: 12px;
+            gap: 12px;
           }
 
           .speech-bubbles-grid {
             grid-template-columns: repeat(4, 1fr);
           }
+
+          .templates-row {
+            padding: 6px;
+          }
+
+          .template-option {
+            min-width: 70px;
+          }
+
+          .template-option img {
+            width: 40px;
+            height: 40px;
+          }
         }
-        
+
         @media (max-width: 480px) {
           .speech-bubbles-grid {
             grid-template-columns: repeat(3, 1fr);
           }
-          
-          .meme-generator-container {
-            padding: 10px;
+
+          .compact-row.three-col {
+            grid-template-columns: 1fr;
           }
+
+          .history-controls, .canvas-controls, .export-options {
+            flex-wrap: wrap;
+          }
+        }
+
+        /* Loading and Empty States */
+        .loading-spinner {
+          display: inline-block;
+          width: 16px;
+          height: 16px;
+          border: 2px solid #f3f3f3;
+          border-top: 2px solid var(--primary-color);
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+
+        .empty-state {
+          text-align: center;
+          color: #666;
+          font-size: 12px;
+          padding: 16px;
+          font-style: italic;
         }
       </style>
 
       <div class="meme-generator-container">
-        <!-- Templates row at the top -->
+        <!-- Compact Templates Row -->
         <div class="templates-row" id="templates-container"></div>
 
         <div class="editor-container">
-          <!-- Left sidebar with text and shapes -->
-          <div class="sidebar left-sidebar">
+          <!-- Left Sidebar -->
+          <div class="sidebar">
+            <!-- Text Layers Section -->
             <div class="control-group">
-              <h3>Text Layers</h3>
-              <button id="add-text-btn">Add Text</button>
-              <div id="text-layers-container"></div>
+              <div class="control-group-header" data-section="text">
+                <h3>✏️ Text Layers</h3>
+                <span class="toggle-icon">▼</span>
+              </div>
+              <div class="control-group-content" data-content="text">
+                <button id="add-text-btn" class="w-full">+ Add Text</button>
+                <div id="text-layers-container"></div>
+              </div>
             </div>
 
+            <!-- Images Section -->
             <div class="control-group">
-              <h3>Images</h3>
-              <label class="custom-file-upload">
-                <input type="file" id="file-upload" accept="image/*">
-                Upload Image
-              </label>
-              <div id="image-layers-container"></div>
+              <div class="control-group-header" data-section="images">
+                <h3>🖼️ Images</h3>
+                <span class="toggle-icon">▼</span>
+              </div>
+              <div class="control-group-content" data-content="images">
+                <label class="custom-file-upload">
+                  <input type="file" id="file-upload" accept="image/*">
+                  📁 Upload Image
+                </label>
+                <div id="image-layers-container">
+                  <div class="empty-state">No images uploaded</div>
+                </div>
+              </div>
             </div>
 
+            <!-- Shapes Section -->
             <div class="control-group">
-              <h3>Shapes</h3>
-              <button id="add-square-btn">Add Square</button>
-              <button id="add-circle-btn">Add Circle</button>
-              <div id="shape-layers-container"></div>
+              <div class="control-group-header" data-section="shapes">
+                <h3>🔷 Shapes</h3>
+                <span class="toggle-icon">▼</span>
+              </div>
+              <div class="control-group-content" data-content="shapes">
+                <div class="btn-group">
+                  <button id="add-square-btn">⬜ Square</button>
+                  <button id="add-circle-btn">🔵 Circle</button>
+                </div>
+                <div id="shape-layers-container">
+                  <div class="empty-state">No shapes added</div>
+                </div>
+              </div>
             </div>
           </div>
 
-          <!-- Center canvas area -->
+          <!-- Center Canvas -->
           <div class="canvas-container">
             <div class="history-controls">
-              <button id="undo-btn" title="Undo" disabled>Undo</button>
-              <button id="redo-btn" title="Redo" disabled>Redo</button>
+              <button id="undo-btn" class="icon-btn" title="Undo" disabled>↶ Undo</button>
+              <button id="redo-btn" class="icon-btn" title="Redo" disabled>↷ Redo</button>
             </div>
 
             <canvas id="meme-canvas" width="600" height="600"></canvas>
             <canvas id="buffer-canvas" width="600" height="600"></canvas>
 
             <div class="canvas-controls">
-              <button id="reset-btn" class="danger">Reset</button>
+              <button id="reset-btn" class="danger">🗑️ Reset</button>
             </div>
 
             <div class="export-options">
-              <button class="export-btn success" data-format="png">Download PNG</button>
-              <button class="export-btn success" data-format="jpg">Download JPG</button>
+              <button class="export-btn success" data-format="png">💾 PNG</button>
+              <button class="export-btn success" data-format="jpg">💾 JPG</button>
             </div>
           </div>
 
-          <!-- Right sidebar with speech bubbles -->
-          <div class="sidebar speech-bubbles-sidebar">
+          <!-- Right Sidebar - Speech Bubbles -->
+          <div class="sidebar">
             <div class="control-group">
-              <h3>Speech Bubbles</h3>
-              <div class="speech-bubbles-grid" id="speech-bubbles-grid"></div>
+              <div class="control-group-header" data-section="speech">
+                <h3>💬 Speech Bubbles</h3>
+                <span class="toggle-icon">▼</span>
+              </div>
+              <div class="control-group-content" data-content="speech">
+                <div class="speech-bubbles-grid" id="speech-bubbles-grid"></div>
+                <div id="speech-bubble-layers-container">
+                  <div class="empty-state">No speech bubbles added</div>
+                </div>
+              </div>
             </div>
-            <div id="speech-bubble-layers-container"></div>
           </div>
         </div>
       </div>
     `;
   }
 
-  // Set up event listeners for all interactive elements
+  // Setup event listeners
   setupEventListeners() {
     // Get DOM elements
     this.canvas = this.shadowRoot.getElementById('meme-canvas');
     this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
-
-    // Set up buffer canvas for smooth drawing
     this.bufferCanvas = this.shadowRoot.getElementById('buffer-canvas');
     this.bufferCtx = this.bufferCanvas.getContext('2d', { willReadFrequently: true });
-
-    // Ensure both canvases have the same dimensions
     this.bufferCanvas.width = this.canvas.width;
     this.bufferCanvas.height = this.canvas.height;
 
@@ -739,7 +782,10 @@ class MemeGenerator extends HTMLElement {
     this.speechBubblesGrid = this.shadowRoot.getElementById('speech-bubbles-grid');
     this.speechBubbleLayersContainer = this.shadowRoot.getElementById('speech-bubble-layers-container');
 
-    // Add event listeners
+    // Setup collapsible sections
+    this.setupCollapsibleSections();
+
+    // Main action buttons
     this.shadowRoot.getElementById('add-text-btn').addEventListener('click', () => this.addTextLayer());
     this.shadowRoot.getElementById('add-square-btn').addEventListener('click', () => this.addShape('square'));
     this.shadowRoot.getElementById('add-circle-btn').addEventListener('click', () => this.addShape('circle'));
@@ -748,13 +794,13 @@ class MemeGenerator extends HTMLElement {
     this.undoBtn.addEventListener('click', () => this.undo());
     this.redoBtn.addEventListener('click', () => this.redo());
 
-    // Set up canvas drag events
+    // Canvas events
     this.canvas.addEventListener('mousedown', (e) => this.handleCanvasMouseDown(e));
     this.canvas.addEventListener('mousemove', (e) => this.handleCanvasMouseMove(e));
     this.canvas.addEventListener('mouseup', () => this.handleCanvasMouseUp());
     this.canvas.addEventListener('mouseleave', () => this.handleCanvasMouseUp());
 
-    // Export format buttons
+    // Export buttons
     this.shadowRoot.querySelectorAll('.export-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const format = e.target.getAttribute('data-format');
@@ -762,14 +808,32 @@ class MemeGenerator extends HTMLElement {
       });
     });
 
-    // Load templates
     this.loadTemplates();
-    
-    // Load speech bubbles
     this.loadSpeechBubbles();
-
-    // Initial render
     this.renderCanvas();
+  }
+
+  // Setup collapsible sections
+  setupCollapsibleSections() {
+    this.shadowRoot.querySelectorAll('.control-group-header').forEach(header => {
+      header.addEventListener('click', () => {
+        const section = header.getAttribute('data-section');
+        const content = this.shadowRoot.querySelector(`[data-content="${section}"]`);
+        const icon = header.querySelector('.toggle-icon');
+        
+        const isCollapsed = content.classList.contains('collapsed');
+        
+        if (isCollapsed) {
+          content.classList.remove('collapsed');
+          header.classList.remove('collapsed');
+          this.state.collapsedSections[section] = false;
+        } else {
+          content.classList.add('collapsed');
+          header.classList.add('collapsed');
+          this.state.collapsedSections[section] = true;
+        }
+      });
+    });
   }
 
   // Load available templates
@@ -781,7 +845,6 @@ class MemeGenerator extends HTMLElement {
       templateElement.className = 'template-option';
       templateElement.dataset.id = template.id;
 
-      // Special styling for CMS templates
       if (template.id === 'cms-template') {
         templateElement.classList.add('cms-template');
       }
@@ -791,7 +854,7 @@ class MemeGenerator extends HTMLElement {
       }
 
       templateElement.innerHTML = `
-        <img src="${template.url || 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='}" alt="${template.name}">
+        <img src="${template.url || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50"><rect width="50" height="50" fill="%23ddd"/></svg>'}" alt="${template.name}">
         <span class="template-name">${template.name}</span>
       `;
 
@@ -854,17 +917,14 @@ class MemeGenerator extends HTMLElement {
   selectTemplate(templateId) {
     this.state.selectedTemplate = templateId;
 
-    // Clear existing text layers if it's a predefined template
     if (templateId !== 'custom') {
       this.saveState();
       this.state.textLayers = [];
       this.state.shapes = [];
 
-      // Create default text layers based on template layout
       const template = this.state.templates.find(t => t.id === templateId);
 
       if (template && template.url) {
-        // Preload the template image for smoother rendering
         const img = new Image();
         img.crossOrigin = 'Anonymous';
         img.onload = () => {
@@ -897,7 +957,6 @@ class MemeGenerator extends HTMLElement {
       }
     }
 
-    // Update template selection UI
     this.templatesContainer.querySelectorAll('.template-option').forEach(el => {
       if (el.dataset.id === templateId) {
         el.classList.add('selected');
@@ -968,10 +1027,8 @@ class MemeGenerator extends HTMLElement {
 
       const img = new Image();
       img.onload = () => {
-        // Cache the image for smoother rendering
         this.state.imageCache[e.target.result] = img;
 
-        // Calculate dimensions to fit within canvas while maintaining aspect ratio
         let width = img.width;
         let height = img.height;
         const maxDimension = 300;
@@ -1004,72 +1061,82 @@ class MemeGenerator extends HTMLElement {
     };
 
     reader.readAsDataURL(file);
-    event.target.value = ''; // Reset file input
+    event.target.value = '';
   }
 
-  // Render all text layer UI controls
+  // Render compact text layer UI controls
   renderTextLayersUI() {
     this.textLayersContainer.innerHTML = '';
 
+    if (this.state.textLayers.length === 0) {
+      this.textLayersContainer.innerHTML = '<div class="empty-state">No text layers added</div>';
+      return;
+    }
+
     this.state.textLayers.forEach((layer, index) => {
       const layerElement = document.createElement('div');
-      layerElement.className = 'text-layer-item';
+      layerElement.className = 'layer-item';
       layerElement.innerHTML = `
         <div class="layer-item-header">
-          <h4>Text Layer ${index + 1}</h4>
+          <h4>📝 Text ${index + 1}</h4>
           <div class="layer-actions">
-            <button class="text-up-btn" data-id="${layer.id}" ${index === 0 ? 'disabled' : ''}>↑</button>
-            <button class="text-down-btn" data-id="${layer.id}" ${index === this.state.textLayers.length - 1 ? 'disabled' : ''}>↓</button>
-            <button class="text-delete-btn danger" data-id="${layer.id}">×</button>
+            <button class="icon-btn" data-action="up" data-id="${layer.id}" ${index === 0 ? 'disabled' : ''} title="Move Up">↑</button>
+            <button class="icon-btn" data-action="down" data-id="${layer.id}" ${index === this.state.textLayers.length - 1 ? 'disabled' : ''} title="Move Down">↓</button>
+            <button class="icon-btn danger" data-action="delete" data-id="${layer.id}" title="Delete">×</button>
           </div>
         </div>
 
         <input type="text" class="text-input" data-id="${layer.id}" value="${layer.text}" placeholder="Enter text">
 
-        <label>Font:</label>
-        <select class="font-family-select" data-id="${layer.id}">
-          ${this.state.fonts.map(font => `
-            <option value="${font}" ${font === layer.fontFamily ? 'selected' : ''}>${font}</option>
-          `).join('')}
-        </select>
+        <div class="compact-row">
+          <div>
+            <label>Font</label>
+            <select class="font-family-select" data-id="${layer.id}">
+              ${this.state.fonts.map(font => `
+                <option value="${font}" ${font === layer.fontFamily ? 'selected' : ''}>${font}</option>
+              `).join('')}
+            </select>
+          </div>
+          <div>
+            <label>Size: <span class="value-display">${layer.fontSize}px</span></label>
+            <input type="range" class="font-size-input" data-id="${layer.id}" min="10" max="100" value="${layer.fontSize}">
+          </div>
+        </div>
 
-        <label>Font Size:</label>
-        <input type="range" class="font-size-input" data-id="${layer.id}" min="10" max="100" value="${layer.fontSize}">
-        <span class="font-size-value">${layer.fontSize}px</span>
+        <div class="compact-row three-col">
+          <div>
+            <label><span class="color-preview" style="background-color: ${layer.color}"></span>Text</label>
+            <input type="color" class="text-color-input" data-id="${layer.id}" value="${layer.color}">
+          </div>
+          <div>
+            <label><span class="color-preview" style="background-color: ${layer.strokeColor}"></span>Outline</label>
+            <input type="color" class="stroke-color-input" data-id="${layer.id}" value="${layer.strokeColor}">
+          </div>
+          <div>
+            <label>Width: <span class="value-display">${layer.strokeWidth}px</span></label>
+            <input type="range" class="stroke-width-input" data-id="${layer.id}" min="0" max="10" value="${layer.strokeWidth}">
+          </div>
+        </div>
 
-        <label>
-          <span class="color-preview" style="background-color: ${layer.color}"></span>
-          Text Color:
-        </label>
-        <input type="color" class="text-color-input" data-id="${layer.id}" value="${layer.color}">
-
-        <label>
-          <span class="color-preview" style="background-color: ${layer.strokeColor}"></span>
-          Outline Color:
-        </label>
-        <input type="color" class="stroke-color-input" data-id="${layer.id}" value="${layer.strokeColor}">
-
-        <label>Outline Width:</label>
-        <input type="range" class="stroke-width-input" data-id="${layer.id}" min="0" max="10" value="${layer.strokeWidth}">
-        <span class="stroke-width-value">${layer.strokeWidth}px</span>
-
-        <label>Alignment:</label>
-        <select class="text-align-select" data-id="${layer.id}">
-          <option value="left" ${layer.align === 'left' ? 'selected' : ''}>Left</option>
-          <option value="center" ${layer.align === 'center' ? 'selected' : ''}>Center</option>
-          <option value="right" ${layer.align === 'right' ? 'selected' : ''}>Right</option>
-        </select>
+        <div>
+          <label>Alignment</label>
+          <select class="text-align-select" data-id="${layer.id}">
+            <option value="left" ${layer.align === 'left' ? 'selected' : ''}>← Left</option>
+            <option value="center" ${layer.align === 'center' ? 'selected' : ''}>↔ Center</option>
+            <option value="right" ${layer.align === 'right' ? 'selected' : ''}>→ Right</option>
+          </select>
+        </div>
       `;
 
       this.textLayersContainer.appendChild(layerElement);
     });
 
-    // Add event listeners to the text layer controls
     this.setupTextLayerEventListeners();
   }
 
-  // Setup event listeners for text layer controls
+  // Setup compact event listeners for text layer controls
   setupTextLayerEventListeners() {
+    // Text input
     this.textLayersContainer.querySelectorAll('.text-input').forEach(input => {
       input.addEventListener('input', (e) => {
         const id = parseInt(e.target.dataset.id);
@@ -1081,6 +1148,7 @@ class MemeGenerator extends HTMLElement {
       });
     });
 
+    // Font family
     this.textLayersContainer.querySelectorAll('.font-family-select').forEach(select => {
       select.addEventListener('change', (e) => {
         const id = parseInt(e.target.dataset.id);
@@ -1092,18 +1160,20 @@ class MemeGenerator extends HTMLElement {
       });
     });
 
+    // Font size
     this.textLayersContainer.querySelectorAll('.font-size-input').forEach(input => {
       input.addEventListener('input', (e) => {
         const id = parseInt(e.target.dataset.id);
         const layer = this.state.textLayers.find(l => l.id === id);
         if (layer) {
           layer.fontSize = parseInt(e.target.value);
-          e.target.nextElementSibling.textContent = `${layer.fontSize}px`;
+          e.target.previousElementSibling.querySelector('.value-display').textContent = `${layer.fontSize}px`;
           this.renderCanvas();
         }
       });
     });
 
+    // Colors
     this.textLayersContainer.querySelectorAll('.text-color-input').forEach(input => {
       input.addEventListener('input', (e) => {
         const id = parseInt(e.target.dataset.id);
@@ -1128,18 +1198,20 @@ class MemeGenerator extends HTMLElement {
       });
     });
 
+    // Stroke width
     this.textLayersContainer.querySelectorAll('.stroke-width-input').forEach(input => {
       input.addEventListener('input', (e) => {
         const id = parseInt(e.target.dataset.id);
         const layer = this.state.textLayers.find(l => l.id === id);
         if (layer) {
           layer.strokeWidth = parseInt(e.target.value);
-          e.target.nextElementSibling.textContent = `${layer.strokeWidth}px`;
+          e.target.previousElementSibling.querySelector('.value-display').textContent = `${layer.strokeWidth}px`;
           this.renderCanvas();
         }
       });
     });
 
+    // Alignment
     this.textLayersContainer.querySelectorAll('.text-align-select').forEach(select => {
       select.addEventListener('change', (e) => {
         const id = parseInt(e.target.dataset.id);
@@ -1151,78 +1223,80 @@ class MemeGenerator extends HTMLElement {
       });
     });
 
-    this.textLayersContainer.querySelectorAll('.text-delete-btn').forEach(btn => {
+    // Action buttons
+    this.textLayersContainer.querySelectorAll('[data-action]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const id = parseInt(e.target.dataset.id);
-        this.saveState();
-        this.state.textLayers = this.state.textLayers.filter(l => l.id !== id);
-        this.renderTextLayersUI();
-        this.renderCanvas();
-        this.updateUndoRedoButtons();
-      });
-    });
-
-    this.textLayersContainer.querySelectorAll('.text-up-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const id = parseInt(e.target.dataset.id);
-        const index = this.state.textLayers.findIndex(l => l.id === id);
-        if (index > 0) {
+        const action = e.target.dataset.action;
+        
+        if (action === 'delete') {
           this.saveState();
-          [this.state.textLayers[index], this.state.textLayers[index - 1]] =
-            [this.state.textLayers[index - 1], this.state.textLayers[index]];
+          this.state.textLayers = this.state.textLayers.filter(l => l.id !== id);
           this.renderTextLayersUI();
           this.renderCanvas();
           this.updateUndoRedoButtons();
-        }
-      });
-    });
-
-    this.textLayersContainer.querySelectorAll('.text-down-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const id = parseInt(e.target.dataset.id);
-        const index = this.state.textLayers.findIndex(l => l.id === id);
-        if (index < this.state.textLayers.length - 1) {
-          this.saveState();
-          [this.state.textLayers[index], this.state.textLayers[index + 1]] =
-            [this.state.textLayers[index + 1], this.state.textLayers[index]];
-          this.renderTextLayersUI();
-          this.renderCanvas();
-          this.updateUndoRedoButtons();
+        } else if (action === 'up') {
+          const index = this.state.textLayers.findIndex(l => l.id === id);
+          if (index > 0) {
+            this.saveState();
+            [this.state.textLayers[index], this.state.textLayers[index - 1]] =
+              [this.state.textLayers[index - 1], this.state.textLayers[index]];
+            this.renderTextLayersUI();
+            this.renderCanvas();
+            this.updateUndoRedoButtons();
+          }
+        } else if (action === 'down') {
+          const index = this.state.textLayers.findIndex(l => l.id === id);
+          if (index < this.state.textLayers.length - 1) {
+            this.saveState();
+            [this.state.textLayers[index], this.state.textLayers[index + 1]] =
+              [this.state.textLayers[index + 1], this.state.textLayers[index]];
+            this.renderTextLayersUI();
+            this.renderCanvas();
+            this.updateUndoRedoButtons();
+          }
         }
       });
     });
   }
 
-  // Render all image layer UI controls
+  // Render compact image layer UI controls
   renderImageLayersUI() {
     this.imageLayersContainer.innerHTML = '';
 
+    if (this.state.uploadedImages.length === 0) {
+      this.imageLayersContainer.innerHTML = '<div class="empty-state">No images uploaded</div>';
+      return;
+    }
+
     this.state.uploadedImages.forEach((image, index) => {
       const layerElement = document.createElement('div');
-      layerElement.className = 'image-layer-item';
+      layerElement.className = 'layer-item';
       layerElement.innerHTML = `
         <div class="layer-item-header">
-          <h4>Image ${index + 1}</h4>
+          <h4>🖼️ Image ${index + 1}</h4>
           <div class="layer-actions">
-            <button class="image-up-btn" data-id="${image.id}" ${index === 0 ? 'disabled' : ''}>↑</button>
-            <button class="image-down-btn" data-id="${image.id}" ${index === this.state.uploadedImages.length - 1 ? 'disabled' : ''}>↓</button>
-            <button class="image-delete-btn danger" data-id="${image.id}">×</button>
+            <button class="icon-btn" data-action="up" data-id="${image.id}" ${index === 0 ? 'disabled' : ''}>↑</button>
+            <button class="icon-btn" data-action="down" data-id="${image.id}" ${index === this.state.uploadedImages.length - 1 ? 'disabled' : ''}>↓</button>
+            <button class="icon-btn danger" data-action="delete" data-id="${image.id}">×</button>
           </div>
         </div>
 
-        <label>Width:</label>
-        <input type="range" class="image-width-input" data-id="${image.id}" min="10" max="600" value="${image.width}">
-        <span class="image-width-value">${Math.round(image.width)}px</span>
-
-        <label>Height:</label>
-        <input type="range" class="image-height-input" data-id="${image.id}" min="10" max="600" value="${image.height}">
-        <span class="image-height-value">${Math.round(image.height)}px</span>
+        <div class="compact-row">
+          <div>
+            <label>Width: <span class="value-display">${Math.round(image.width)}px</span></label>
+            <input type="range" class="image-width-input" data-id="${image.id}" min="10" max="600" value="${image.width}">
+          </div>
+          <div>
+            <label>Height: <span class="value-display">${Math.round(image.height)}px</span></label>
+            <input type="range" class="image-height-input" data-id="${image.id}" min="10" max="600" value="${image.height}">
+          </div>
+        </div>
       `;
 
       this.imageLayersContainer.appendChild(layerElement);
     });
 
-    // Add event listeners to the image layer controls
     this.setupImageLayerEventListeners();
   }
 
@@ -1234,7 +1308,7 @@ class MemeGenerator extends HTMLElement {
         const image = this.state.uploadedImages.find(img => img.id === id);
         if (image) {
           image.width = parseInt(e.target.value);
-          e.target.nextElementSibling.textContent = `${Math.round(image.width)}px`;
+          e.target.previousElementSibling.querySelector('.value-display').textContent = `${Math.round(image.width)}px`;
           this.renderCanvas();
         }
       });
@@ -1246,96 +1320,98 @@ class MemeGenerator extends HTMLElement {
         const image = this.state.uploadedImages.find(img => img.id === id);
         if (image) {
           image.height = parseInt(e.target.value);
-          e.target.nextElementSibling.textContent = `${Math.round(image.height)}px`;
+          e.target.previousElementSibling.querySelector('.value-display').textContent = `${Math.round(image.height)}px`;
           this.renderCanvas();
         }
       });
     });
 
-    this.imageLayersContainer.querySelectorAll('.image-delete-btn').forEach(btn => {
+    this.imageLayersContainer.querySelectorAll('[data-action]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const id = parseInt(e.target.dataset.id);
-        this.saveState();
-        this.state.uploadedImages = this.state.uploadedImages.filter(img => img.id !== id);
-        this.renderImageLayersUI();
-        this.renderCanvas();
-        this.updateUndoRedoButtons();
-      });
-    });
-
-    this.imageLayersContainer.querySelectorAll('.image-up-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const id = parseInt(e.target.dataset.id);
-        const index = this.state.uploadedImages.findIndex(img => img.id === id);
-        if (index > 0) {
+        const action = e.target.dataset.action;
+        
+        if (action === 'delete') {
           this.saveState();
-          [this.state.uploadedImages[index], this.state.uploadedImages[index - 1]] =
-            [this.state.uploadedImages[index - 1], this.state.uploadedImages[index]];
+          this.state.uploadedImages = this.state.uploadedImages.filter(img => img.id !== id);
           this.renderImageLayersUI();
           this.renderCanvas();
           this.updateUndoRedoButtons();
-        }
-      });
-    });
-
-    this.imageLayersContainer.querySelectorAll('.image-down-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const id = parseInt(e.target.dataset.id);
-        const index = this.state.uploadedImages.findIndex(img => img.id === id);
-        if (index < this.state.uploadedImages.length - 1) {
-          this.saveState();
-          [this.state.uploadedImages[index], this.state.uploadedImages[index + 1]] =
-            [this.state.uploadedImages[index + 1], this.state.uploadedImages[index]];
-          this.renderImageLayersUI();
-          this.renderCanvas();
-          this.updateUndoRedoButtons();
+        } else if (action === 'up') {
+          const index = this.state.uploadedImages.findIndex(img => img.id === id);
+          if (index > 0) {
+            this.saveState();
+            [this.state.uploadedImages[index], this.state.uploadedImages[index - 1]] =
+              [this.state.uploadedImages[index - 1], this.state.uploadedImages[index]];
+            this.renderImageLayersUI();
+            this.renderCanvas();
+            this.updateUndoRedoButtons();
+          }
+        } else if (action === 'down') {
+          const index = this.state.uploadedImages.findIndex(img => img.id === id);
+          if (index < this.state.uploadedImages.length - 1) {
+            this.saveState();
+            [this.state.uploadedImages[index], this.state.uploadedImages[index + 1]] =
+              [this.state.uploadedImages[index + 1], this.state.uploadedImages[index]];
+            this.renderImageLayersUI();
+            this.renderCanvas();
+            this.updateUndoRedoButtons();
+          }
         }
       });
     });
   }
 
-  // Render all shape layer UI controls
+  // Render compact shape layer UI controls
   renderShapeLayersUI() {
     this.shapeLayersContainer.innerHTML = '';
 
+    if (this.state.shapes.length === 0) {
+      this.shapeLayersContainer.innerHTML = '<div class="empty-state">No shapes added</div>';
+      return;
+    }
+
     this.state.shapes.forEach((shape, index) => {
       const layerElement = document.createElement('div');
-      layerElement.className = 'shape-layer-item';
+      layerElement.className = 'layer-item';
       layerElement.innerHTML = `
         <div class="layer-item-header">
-          <h4>${shape.shapeType === 'square' ? 'Square' : 'Circle'} ${index + 1}</h4>
+          <h4>${shape.shapeType === 'square' ? '⬜' : '🔵'} ${shape.shapeType === 'square' ? 'Square' : 'Circle'} ${index + 1}</h4>
           <div class="layer-actions">
-            <button class="shape-up-btn" data-id="${shape.id}" ${index === 0 ? 'disabled' : ''}>↑</button>
-            <button class="shape-down-btn" data-id="${shape.id}" ${index === this.state.shapes.length - 1 ? 'disabled' : ''}>↓</button>
-            <button class="shape-delete-btn danger" data-id="${shape.id}">×</button>
+            <button class="icon-btn" data-action="up" data-id="${shape.id}" ${index === 0 ? 'disabled' : ''}>↑</button>
+            <button class="icon-btn" data-action="down" data-id="${shape.id}" ${index === this.state.shapes.length - 1 ? 'disabled' : ''}>↓</button>
+            <button class="icon-btn danger" data-action="delete" data-id="${shape.id}">×</button>
           </div>
         </div>
 
-        <label>
-          <span class="color-preview" style="background-color: ${shape.color}"></span>
-          Color:
-        </label>
-        <input type="color" class="shape-color-input" data-id="${shape.id}" value="${shape.color}">
+        <div class="compact-row">
+          <div>
+            <label><span class="color-preview" style="background-color: ${shape.color}"></span>Color</label>
+            <input type="color" class="shape-color-input" data-id="${shape.id}" value="${shape.color}">
+          </div>
+          <div>
+            <label>Opacity: <span class="value-display">${Math.round(shape.opacity * 100)}%</span></label>
+            <input type="range" class="shape-opacity-input" data-id="${shape.id}" min="0" max="1" step="0.1" value="${shape.opacity}">
+          </div>
+        </div>
 
-        <label>Opacity:</label>
-        <input type="range" class="shape-opacity-input" data-id="${shape.id}" min="0" max="1" step="0.1" value="${shape.opacity}">
-        <span class="shape-opacity-value">${shape.opacity * 100}%</span>
-
-        <label>${shape.shapeType === 'square' ? 'Width' : 'Size'}:</label>
-        <input type="range" class="shape-width-input" data-id="${shape.id}" min="10" max="400" value="${shape.width}">
-        <span class="shape-width-value">${Math.round(shape.width)}px</span>
-
-        ${shape.shapeType === 'square' ? `
-          <label>Height:</label>
-          <input type="range" class="shape-height-input" data-id="${shape.id}" min="10" max="400" value="${shape.height}">
-          <span class="shape-height-value">${Math.round(shape.height)}px</span>
-        ` : ''}
+        <div class="compact-row${shape.shapeType === 'circle' ? '' : ' three-col'}">
+          <div>
+            <label>${shape.shapeType === 'square' ? 'Width' : 'Size'}: <span class="value-display">${Math.round(shape.width)}px</span></label>
+            <input type="range" class="shape-width-input" data-id="${shape.id}" min="10" max="400" value="${shape.width}">
+          </div>
+          ${shape.shapeType === 'square' ? `
+            <div>
+              <label>Height: <span class="value-display">${Math.round(shape.height)}px</span></label>
+              <input type="range" class="shape-height-input" data-id="${shape.id}" min="10" max="400" value="${shape.height}">
+            </div>
+          ` : ''}
+        </div>
       `;
 
       this.shapeLayersContainer.appendChild(layerElement);
     });
 
-    // Add event listeners to the shape layer controls
     this.setupShapeLayerEventListeners();
   }
 
@@ -1359,7 +1435,7 @@ class MemeGenerator extends HTMLElement {
         const shape = this.state.shapes.find(s => s.id === id);
         if (shape) {
           shape.opacity = parseFloat(e.target.value);
-          e.target.nextElementSibling.textContent = `${Math.round(shape.opacity * 100)}%`;
+          e.target.previousElementSibling.querySelector('.value-display').textContent = `${Math.round(shape.opacity * 100)}%`;
           this.renderCanvas();
         }
       });
@@ -1371,9 +1447,9 @@ class MemeGenerator extends HTMLElement {
         const shape = this.state.shapes.find(s => s.id === id);
         if (shape) {
           shape.width = parseInt(e.target.value);
-          e.target.nextElementSibling.textContent = `${Math.round(shape.width)}px`;
+          e.target.previousElementSibling.querySelector('.value-display').textContent = `${Math.round(shape.width)}px`;
           if (shape.shapeType === 'circle') {
-            shape.height = shape.width; // Keep circle proportional
+            shape.height = shape.width;
           }
           this.renderCanvas();
         }
@@ -1386,84 +1462,85 @@ class MemeGenerator extends HTMLElement {
         const shape = this.state.shapes.find(s => s.id === id);
         if (shape && shape.shapeType === 'square') {
           shape.height = parseInt(e.target.value);
-          e.target.nextElementSibling.textContent = `${Math.round(shape.height)}px`;
+          e.target.previousElementSibling.querySelector('.value-display').textContent = `${Math.round(shape.height)}px`;
           this.renderCanvas();
         }
       });
     });
 
-    this.shapeLayersContainer.querySelectorAll('.shape-delete-btn').forEach(btn => {
+    this.shapeLayersContainer.querySelectorAll('[data-action]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const id = parseInt(e.target.dataset.id);
-        this.saveState();
-        this.state.shapes = this.state.shapes.filter(s => s.id !== id);
-        this.renderShapeLayersUI();
-        this.renderCanvas();
-        this.updateUndoRedoButtons();
-      });
-    });
-
-    this.shapeLayersContainer.querySelectorAll('.shape-up-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const id = parseInt(e.target.dataset.id);
-        const index = this.state.shapes.findIndex(s => s.id === id);
-        if (index > 0) {
+        const action = e.target.dataset.action;
+        
+        if (action === 'delete') {
           this.saveState();
-          [this.state.shapes[index], this.state.shapes[index - 1]] =
-            [this.state.shapes[index - 1], this.state.shapes[index]];
+          this.state.shapes = this.state.shapes.filter(s => s.id !== id);
           this.renderShapeLayersUI();
           this.renderCanvas();
           this.updateUndoRedoButtons();
-        }
-      });
-    });
-
-    this.shapeLayersContainer.querySelectorAll('.shape-down-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const id = parseInt(e.target.dataset.id);
-        const index = this.state.shapes.findIndex(s => s.id === id);
-        if (index < this.state.shapes.length - 1) {
-          this.saveState();
-          [this.state.shapes[index], this.state.shapes[index + 1]] =
-            [this.state.shapes[index + 1], this.state.shapes[index]];
-          this.renderShapeLayersUI();
-          this.renderCanvas();
-          this.updateUndoRedoButtons();
+        } else if (action === 'up') {
+          const index = this.state.shapes.findIndex(s => s.id === id);
+          if (index > 0) {
+            this.saveState();
+            [this.state.shapes[index], this.state.shapes[index - 1]] =
+              [this.state.shapes[index - 1], this.state.shapes[index]];
+            this.renderShapeLayersUI();
+            this.renderCanvas();
+            this.updateUndoRedoButtons();
+          }
+        } else if (action === 'down') {
+          const index = this.state.shapes.findIndex(s => s.id === id);
+          if (index < this.state.shapes.length - 1) {
+            this.saveState();
+            [this.state.shapes[index], this.state.shapes[index + 1]] =
+              [this.state.shapes[index + 1], this.state.shapes[index]];
+            this.renderShapeLayersUI();
+            this.renderCanvas();
+            this.updateUndoRedoButtons();
+          }
         }
       });
     });
   }
 
-  // Render all speech bubble UI controls
+  // Render compact speech bubble UI controls
   renderSpeechBubblesUI() {
     this.speechBubbleLayersContainer.innerHTML = '';
 
+    if (this.state.speechBubbles.length === 0) {
+      this.speechBubbleLayersContainer.innerHTML = '<div class="empty-state">No speech bubbles added</div>';
+      return;
+    }
+
     this.state.speechBubbles.forEach((bubble, index) => {
       const layerElement = document.createElement('div');
-      layerElement.className = 'speech-bubble-layer-item';
+      layerElement.className = 'layer-item';
       layerElement.innerHTML = `
         <div class="layer-item-header">
-          <h4>Speech Bubble ${index + 1}</h4>
+          <h4>💬 Bubble ${index + 1}</h4>
           <div class="layer-actions">
-            <button class="bubble-up-btn" data-id="${bubble.id}" ${index === 0 ? 'disabled' : ''}>↑</button>
-            <button class="bubble-down-btn" data-id="${bubble.id}" ${index === this.state.speechBubbles.length - 1 ? 'disabled' : ''}>↓</button>
-            <button class="bubble-delete-btn danger" data-id="${bubble.id}">×</button>
+            <button class="icon-btn" data-action="up" data-id="${bubble.id}" ${index === 0 ? 'disabled' : ''}>↑</button>
+            <button class="icon-btn" data-action="down" data-id="${bubble.id}" ${index === this.state.speechBubbles.length - 1 ? 'disabled' : ''}>↓</button>
+            <button class="icon-btn danger" data-action="delete" data-id="${bubble.id}">×</button>
           </div>
         </div>
 
-        <label>Width:</label>
-        <input type="range" class="bubble-width-input" data-id="${bubble.id}" min="50" max="400" value="${bubble.width}">
-        <span class="bubble-width-value">${Math.round(bubble.width)}px</span>
-
-        <label>Height:</label>
-        <input type="range" class="bubble-height-input" data-id="${bubble.id}" min="50" max="400" value="${bubble.height}">
-        <span class="bubble-height-value">${Math.round(bubble.height)}px</span>
+        <div class="compact-row">
+          <div>
+            <label>Width: <span class="value-display">${Math.round(bubble.width)}px</span></label>
+            <input type="range" class="bubble-width-input" data-id="${bubble.id}" min="50" max="400" value="${bubble.width}">
+          </div>
+          <div>
+            <label>Height: <span class="value-display">${Math.round(bubble.height)}px</span></label>
+            <input type="range" class="bubble-height-input" data-id="${bubble.id}" min="50" max="400" value="${bubble.height}">
+          </div>
+        </div>
       `;
 
       this.speechBubbleLayersContainer.appendChild(layerElement);
     });
 
-    // Add event listeners to the speech bubble layer controls
     this.setupSpeechBubbleEventListeners();
   }
 
@@ -1475,7 +1552,7 @@ class MemeGenerator extends HTMLElement {
         const bubble = this.state.speechBubbles.find(b => b.id === id);
         if (bubble) {
           bubble.width = parseInt(e.target.value);
-          e.target.nextElementSibling.textContent = `${Math.round(bubble.width)}px`;
+          e.target.previousElementSibling.querySelector('.value-display').textContent = `${Math.round(bubble.width)}px`;
           this.renderCanvas();
         }
       });
@@ -1487,105 +1564,164 @@ class MemeGenerator extends HTMLElement {
         const bubble = this.state.speechBubbles.find(b => b.id === id);
         if (bubble) {
           bubble.height = parseInt(e.target.value);
-          e.target.nextElementSibling.textContent = `${Math.round(bubble.height)}px`;
+          e.target.previousElementSibling.querySelector('.value-display').textContent = `${Math.round(bubble.height)}px`;
           this.renderCanvas();
         }
       });
     });
 
-    this.speechBubbleLayersContainer.querySelectorAll('.bubble-delete-btn').forEach(btn => {
+    this.speechBubbleLayersContainer.querySelectorAll('[data-action]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const id = parseInt(e.target.dataset.id);
-        this.saveState();
-        this.state.speechBubbles = this.state.speechBubbles.filter(b => b.id !== id);
-        this.renderSpeechBubblesUI();
-        this.renderCanvas();
-        this.updateUndoRedoButtons();
-      });
-    });
-
-    this.speechBubbleLayersContainer.querySelectorAll('.bubble-up-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const id = parseInt(e.target.dataset.id);
-        const index = this.state.speechBubbles.findIndex(b => b.id === id);
-        if (index > 0) {
+        const action = e.target.dataset.action;
+        
+        if (action === 'delete') {
           this.saveState();
-          [this.state.speechBubbles[index], this.state.speechBubbles[index - 1]] =
-            [this.state.speechBubbles[index - 1], this.state.speechBubbles[index]];
+          this.state.speechBubbles = this.state.speechBubbles.filter(b => b.id !== id);
           this.renderSpeechBubblesUI();
           this.renderCanvas();
           this.updateUndoRedoButtons();
-        }
-      });
-    });
-
-    this.speechBubbleLayersContainer.querySelectorAll('.bubble-down-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const id = parseInt(e.target.dataset.id);
-        const index = this.state.speechBubbles.findIndex(b => b.id === id);
-        if (index < this.state.speechBubbles.length - 1) {
-          this.saveState();
-          [this.state.speechBubbles[index], this.state.speechBubbles[index + 1]] =
-            [this.state.speechBubbles[index + 1], this.state.speechBubbles[index]];
-          this.renderSpeechBubblesUI();
-          this.renderCanvas();
-          this.updateUndoRedoButtons();
+        } else if (action === 'up') {
+          const index = this.state.speechBubbles.findIndex(b => b.id === id);
+          if (index > 0) {
+            this.saveState();
+            [this.state.speechBubbles[index], this.state.speechBubbles[index - 1]] =
+              [this.state.speechBubbles[index - 1], this.state.speechBubbles[index]];
+            this.renderSpeechBubblesUI();
+            this.renderCanvas();
+            this.updateUndoRedoButtons();
+          }
+        } else if (action === 'down') {
+          const index = this.state.speechBubbles.findIndex(b => b.id === id);
+          if (index < this.state.speechBubbles.length - 1) {
+            this.saveState();
+            [this.state.speechBubbles[index], this.state.speechBubbles[index + 1]] =
+              [this.state.speechBubbles[index + 1], this.state.speechBubbles[index]];
+            this.renderSpeechBubblesUI();
+            this.renderCanvas();
+            this.updateUndoRedoButtons();
+          }
         }
       });
     });
   }
 
-  // Render the canvas with all elements - FIXED ASPECT RATIO
+  // Save state for undo
+  saveState() {
+    this.state.undoStack.push(JSON.stringify({
+      textLayers: this.state.textLayers,
+      shapes: this.state.shapes,
+      uploadedImages: this.state.uploadedImages,
+      speechBubbles: this.state.speechBubbles
+    }));
+
+    if (this.state.undoStack.length > 20) {
+      this.state.undoStack.shift();
+    }
+
+    this.state.redoStack = [];
+  }
+
+  // Undo last change
+  undo() {
+    if (this.state.undoStack.length > 0) {
+      this.state.redoStack.push(JSON.stringify({
+        textLayers: this.state.textLayers,
+        shapes: this.state.shapes,
+        uploadedImages: this.state.uploadedImages,
+        speechBubbles: this.state.speechBubbles
+      }));
+
+      const prevState = JSON.parse(this.state.undoStack.pop());
+      this.state.textLayers = prevState.textLayers;
+      this.state.shapes = prevState.shapes;
+      this.state.uploadedImages = prevState.uploadedImages;
+      this.state.speechBubbles = prevState.speechBubbles || [];
+
+      this.renderCanvas();
+      this.renderTextLayersUI();
+      this.renderImageLayersUI();
+      this.renderShapeLayersUI();
+      this.renderSpeechBubblesUI();
+      this.updateUndoRedoButtons();
+    }
+  }
+
+  // Redo last undone change
+  redo() {
+    if (this.state.redoStack.length > 0) {
+      this.state.undoStack.push(JSON.stringify({
+        textLayers: this.state.textLayers,
+        shapes: this.state.shapes,
+        uploadedImages: this.state.uploadedImages,
+        speechBubbles: this.state.speechBubbles
+      }));
+
+      const redoneState = JSON.parse(this.state.redoStack.pop());
+      this.state.textLayers = redoneState.textLayers;
+      this.state.shapes = redoneState.shapes;
+      this.state.uploadedImages = redoneState.uploadedImages;
+      this.state.speechBubbles = redoneState.speechBubbles || [];
+
+      this.renderCanvas();
+      this.renderTextLayersUI();
+      this.renderImageLayersUI();
+      this.renderShapeLayersUI();
+      this.renderSpeechBubblesUI();
+      this.updateUndoRedoButtons();
+    }
+  }
+
+  // Check if canvas is tainted
+  isCanvasTainted() {
+    try {
+      this.canvas.toDataURL('image/png');
+      return false;
+    } catch (error) {
+      return error.name === 'SecurityError';
+    }
+  }
+
+  // Render canvas with aspect ratio preserved
   renderCanvas() {
-    // Clear both canvases
     this.bufferCtx.clearRect(0, 0, this.bufferCanvas.width, this.bufferCanvas.height);
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-    // Draw background (either template or white) - MAINTAIN ASPECT RATIO
     if (this.state.selectedTemplate && this.state.selectedTemplate !== 'custom') {
       const template = this.state.templates.find(t => t.id === this.state.selectedTemplate);
       if (template && template.url) {
-        // Check if the image is cached
         if (this.state.imageCache[template.url]) {
           const img = this.state.imageCache[template.url];
           
-          // Calculate aspect ratio preserving dimensions
           const canvasAspect = this.bufferCanvas.width / this.bufferCanvas.height;
           const imageAspect = img.width / img.height;
           
           let drawWidth, drawHeight, drawX, drawY;
           
           if (imageAspect > canvasAspect) {
-            // Image is wider than canvas aspect ratio
             drawWidth = this.bufferCanvas.width;
             drawHeight = this.bufferCanvas.width / imageAspect;
             drawX = 0;
             drawY = (this.bufferCanvas.height - drawHeight) / 2;
           } else {
-            // Image is taller than canvas aspect ratio
             drawHeight = this.bufferCanvas.height;
             drawWidth = this.bufferCanvas.height * imageAspect;
             drawY = 0;
             drawX = (this.bufferCanvas.width - drawWidth) / 2;
           }
           
-          // Fill background with white first
           this.bufferCtx.fillStyle = '#FFFFFF';
           this.bufferCtx.fillRect(0, 0, this.bufferCanvas.width, this.bufferCanvas.height);
-          
-          // Draw image with aspect ratio preserved
           this.bufferCtx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
           
           this.drawCanvasLayers();
-          // Copy from buffer to main canvas
           this.ctx.drawImage(this.bufferCanvas, 0, 0);
         } else {
-          // If not cached, load it
           const img = new Image();
           img.crossOrigin = 'Anonymous';
           img.onload = () => {
             this.state.imageCache[template.url] = img;
-            this.renderCanvas(); // Re-render once loaded
+            this.renderCanvas();
           };
           img.onerror = () => {
             console.error('Failed to load template image');
@@ -1600,12 +1736,9 @@ class MemeGenerator extends HTMLElement {
       }
     }
 
-    // Default white background
     this.bufferCtx.fillStyle = '#FFFFFF';
     this.bufferCtx.fillRect(0, 0, this.bufferCanvas.width, this.bufferCanvas.height);
     this.drawCanvasLayers();
-
-    // Copy from buffer to main canvas
     this.ctx.drawImage(this.bufferCanvas, 0, 0);
   }
 
@@ -1625,32 +1758,21 @@ class MemeGenerator extends HTMLElement {
         );
       } else if (shape.shapeType === 'circle') {
         this.bufferCtx.beginPath();
-        this.bufferCtx.arc(
-          shape.x,
-          shape.y,
-          shape.width / 2,
-          0,
-          Math.PI * 2
-        );
+        this.bufferCtx.arc(shape.x, shape.y, shape.width / 2, 0, Math.PI * 2);
         this.bufferCtx.fill();
       }
     });
 
-    // Reset alpha
     this.bufferCtx.globalAlpha = 1;
 
     // Draw uploaded images
     let pendingImages = 0;
 
     this.state.uploadedImages.forEach(image => {
-      // Check if the image is already cached
       if (this.state.imageCache[image.src]) {
         this.bufferCtx.drawImage(
           this.state.imageCache[image.src],
-          image.x,
-          image.y,
-          image.width,
-          image.height
+          image.x, image.y, image.width, image.height
         );
       } else {
         pendingImages++;
@@ -1658,20 +1780,11 @@ class MemeGenerator extends HTMLElement {
         img.crossOrigin = 'Anonymous';
         img.onload = () => {
           this.state.imageCache[image.src] = img;
-          this.bufferCtx.drawImage(
-            img,
-            image.x,
-            image.y,
-            image.width,
-            image.height
-          );
-
+          this.bufferCtx.drawImage(img, image.x, image.y, image.width, image.height);
           pendingImages--;
           if (pendingImages === 0) {
-            // All images loaded, now draw text
             this.drawSpeechBubbles();
             this.drawTextLayers();
-            // Update main canvas
             this.ctx.drawImage(this.bufferCanvas, 0, 0);
           }
         };
@@ -1688,10 +1801,8 @@ class MemeGenerator extends HTMLElement {
       }
     });
     
-    // Draw speech bubbles
     this.drawSpeechBubbles();
 
-    // If no pending images or no images at all, draw text layers immediately
     if (pendingImages === 0) {
       this.drawTextLayers();
       this.ctx.drawImage(this.bufferCanvas, 0, 0);
@@ -1703,14 +1814,10 @@ class MemeGenerator extends HTMLElement {
     let pendingBubbles = 0;
     
     this.state.speechBubbles.forEach(bubble => {
-      // Check if the bubble image is already cached
       if (this.state.imageCache[bubble.src]) {
         this.bufferCtx.drawImage(
           this.state.imageCache[bubble.src],
-          bubble.x,
-          bubble.y,
-          bubble.width,
-          bubble.height
+          bubble.x, bubble.y, bubble.width, bubble.height
         );
       } else {
         pendingBubbles++;
@@ -1718,19 +1825,10 @@ class MemeGenerator extends HTMLElement {
         img.crossOrigin = 'Anonymous';
         img.onload = () => {
           this.state.imageCache[bubble.src] = img;
-          this.bufferCtx.drawImage(
-            img,
-            bubble.x,
-            bubble.y,
-            bubble.width,
-            bubble.height
-          );
-
+          this.bufferCtx.drawImage(img, bubble.x, bubble.y, bubble.width, bubble.height);
           pendingBubbles--;
           if (pendingBubbles === 0) {
-            // All bubbles loaded, now draw text
             this.drawTextLayers();
-            // Update main canvas
             this.ctx.drawImage(this.bufferCanvas, 0, 0);
           }
         };
@@ -1754,29 +1852,26 @@ class MemeGenerator extends HTMLElement {
       this.bufferCtx.textAlign = layer.align;
       this.bufferCtx.textBaseline = 'middle';
 
-      // Draw text stroke
       if (layer.strokeWidth > 0) {
         this.bufferCtx.lineWidth = layer.strokeWidth;
         this.bufferCtx.strokeStyle = layer.strokeColor;
         this.bufferCtx.strokeText(layer.text, layer.x, layer.y);
       }
 
-      // Draw text fill
       this.bufferCtx.fillStyle = layer.color;
       this.bufferCtx.fillText(layer.text, layer.x, layer.y);
     });
   }
 
-  // Handle canvas mouse down event for dragging elements
+  // Handle canvas mouse events
   handleCanvasMouseDown(e) {
     const rect = this.canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    // Check text layers (from top to bottom)
+    // Check text layers
     for (let i = this.state.textLayers.length - 1; i >= 0; i--) {
       const layer = this.state.textLayers[i];
-
       if (layer.draggable) {
         this.ctx.font = `${layer.fontSize}px ${layer.fontFamily}`;
         const textWidth = this.ctx.measureText(layer.text).width;
@@ -1789,12 +1884,8 @@ class MemeGenerator extends HTMLElement {
           textX = layer.x - textWidth;
         }
 
-        if (
-          x >= textX - 10 &&
-          x <= textX + textWidth + 10 &&
-          y >= layer.y - (textHeight / 2) - 10 &&
-          y <= layer.y + (textHeight / 2) + 10
-        ) {
+        if (x >= textX - 10 && x <= textX + textWidth + 10 &&
+            y >= layer.y - (textHeight / 2) - 10 && y <= layer.y + (textHeight / 2) + 10) {
           this.state.isDragging = true;
           this.state.selectedElement = { type: 'text', index: i };
           this.state.dragOffsetX = x - layer.x;
@@ -1804,17 +1895,12 @@ class MemeGenerator extends HTMLElement {
       }
     }
     
-    // Check speech bubbles (from top to bottom)
+    // Check speech bubbles
     for (let i = this.state.speechBubbles.length - 1; i >= 0; i--) {
       const bubble = this.state.speechBubbles[i];
-
       if (bubble.draggable) {
-        if (
-          x >= bubble.x &&
-          x <= bubble.x + bubble.width &&
-          y >= bubble.y &&
-          y <= bubble.y + bubble.height
-        ) {
+        if (x >= bubble.x && x <= bubble.x + bubble.width &&
+            y >= bubble.y && y <= bubble.y + bubble.height) {
           this.state.isDragging = true;
           this.state.selectedElement = { type: 'speechBubble', index: i };
           this.state.dragOffsetX = x - bubble.x;
@@ -1824,17 +1910,12 @@ class MemeGenerator extends HTMLElement {
       }
     }
 
-    // Check uploaded images (from top to bottom)
+    // Check uploaded images
     for (let i = this.state.uploadedImages.length - 1; i >= 0; i--) {
       const image = this.state.uploadedImages[i];
-
       if (image.draggable) {
-        if (
-          x >= image.x &&
-          x <= image.x + image.width &&
-          y >= image.y &&
-          y <= image.y + image.height
-        ) {
+        if (x >= image.x && x <= image.x + image.width &&
+            y >= image.y && y <= image.y + image.height) {
           this.state.isDragging = true;
           this.state.selectedElement = { type: 'image', index: i };
           this.state.dragOffsetX = x - image.x;
@@ -1844,18 +1925,13 @@ class MemeGenerator extends HTMLElement {
       }
     }
 
-    // Check shapes (from top to bottom)
+    // Check shapes
     for (let i = this.state.shapes.length - 1; i >= 0; i--) {
       const shape = this.state.shapes[i];
-
       if (shape.draggable) {
         if (shape.shapeType === 'square') {
-          if (
-            x >= shape.x - (shape.width / 2) &&
-            x <= shape.x + (shape.width / 2) &&
-            y >= shape.y - (shape.height / 2) &&
-            y <= shape.y + (shape.height / 2)
-          ) {
+          if (x >= shape.x - (shape.width / 2) && x <= shape.x + (shape.width / 2) &&
+              y >= shape.y - (shape.height / 2) && y <= shape.y + (shape.height / 2)) {
             this.state.isDragging = true;
             this.state.selectedElement = { type: 'shape', index: i };
             this.state.dragOffsetX = x - shape.x;
@@ -1863,11 +1939,7 @@ class MemeGenerator extends HTMLElement {
             return;
           }
         } else if (shape.shapeType === 'circle') {
-          const distance = Math.sqrt(
-            Math.pow(x - shape.x, 2) +
-            Math.pow(y - shape.y, 2)
-          );
-
+          const distance = Math.sqrt(Math.pow(x - shape.x, 2) + Math.pow(y - shape.y, 2));
           if (distance <= shape.width / 2) {
             this.state.isDragging = true;
             this.state.selectedElement = { type: 'shape', index: i };
@@ -1880,7 +1952,6 @@ class MemeGenerator extends HTMLElement {
     }
   }
 
-  // Handle canvas mouse move event for dragging elements
   handleCanvasMouseMove(e) {
     if (this.state.isDragging && this.state.selectedElement) {
       const rect = this.canvas.getBoundingClientRect();
@@ -1905,7 +1976,6 @@ class MemeGenerator extends HTMLElement {
         bubble.y = y - this.state.dragOffsetY;
       }
 
-      // Only render if not already scheduled
       if (!this.renderPending) {
         this.renderPending = true;
         requestAnimationFrame(() => {
@@ -1916,7 +1986,6 @@ class MemeGenerator extends HTMLElement {
     }
   }
 
-  // Handle canvas mouse up event for dragging elements
   handleCanvasMouseUp() {
     if (this.state.isDragging) {
       this.saveState();
@@ -1932,21 +2001,19 @@ class MemeGenerator extends HTMLElement {
     this.redoBtn.disabled = this.state.redoStack.length === 0;
   }
 
-  // Download the meme as an image - FIXED EXPORT FUNCTIONALITY
+  // Download the meme as an image
   downloadMeme(format = 'png') {
     if (this.isDownloading) return;
     this.isDownloading = true;
 
     try {
-      // Ensure all images are loaded before attempting to download
       const loadAllImages = () => {
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve) => {
           let pendingImages = 0;
           const template = this.state.selectedTemplate
             ? this.state.templates.find(t => t.id === this.state.selectedTemplate)
             : null;
 
-          // Check template image
           if (template && template.url && !this.state.imageCache[template.url]) {
             pendingImages++;
             const img = new Image();
@@ -1964,7 +2031,6 @@ class MemeGenerator extends HTMLElement {
             img.src = template.url;
           }
 
-          // Check uploaded images
           this.state.uploadedImages.forEach(image => {
             if (!this.state.imageCache[image.src]) {
               pendingImages++;
@@ -1984,7 +2050,6 @@ class MemeGenerator extends HTMLElement {
             }
           });
           
-          // Check speech bubbles
           this.state.speechBubbles.forEach(bubble => {
             if (!this.state.imageCache[bubble.src]) {
               pendingImages++;
@@ -2004,54 +2069,41 @@ class MemeGenerator extends HTMLElement {
             }
           });
 
-          // If no images need to be loaded, resolve immediately
           if (pendingImages === 0) resolve();
         });
       };
 
-      // Wait for images to load, then render and download
-      loadAllImages()
-        .then(() => {
-          // Force a full render to the buffer canvas
-          this.renderCanvas();
+      loadAllImages().then(() => {
+        this.renderCanvas();
+        this.ctx.drawImage(this.bufferCanvas, 0, 0);
 
-          // Ensure the main canvas is updated
-          this.ctx.drawImage(this.bufferCanvas, 0, 0);
+        const mimeType = format === 'jpg' ? 'image/jpeg' : 'image/png';
+        const extension = format === 'jpg' ? 'jpg' : 'png';
 
-          // Determine MIME type and file extension
-          const mimeType = format === 'jpg' ? 'image/jpeg' : 'image/png';
-          const extension = format === 'jpg' ? 'jpg' : 'png';
-
-          // Generate data URL
-          let dataURL;
-          try {
-            dataURL = this.canvas.toDataURL(mimeType, format === 'jpg' ? 0.9 : 1.0);
-          } catch (error) {
-            console.error('Error generating data URL:', error);
-            alert('Failed to generate meme image. This may be due to cross-origin images. Try using a custom uploaded image or a different template.');
-            this.isDownloading = false;
-            return;
-          }
-
-          // Create download link
-          const link = document.createElement('a');
-          link.href = dataURL;
-          link.download = `meme-${Date.now()}.${extension}`;
-          link.style.display = 'none';
-
-          // Trigger download
-          document.body.appendChild(link);
-          link.click();
-
-          // Clean up
-          document.body.removeChild(link);
+        let dataURL;
+        try {
+          dataURL = this.canvas.toDataURL(mimeType, format === 'jpg' ? 0.9 : 1.0);
+        } catch (error) {
+          console.error('Error generating data URL:', error);
+          alert('Failed to generate meme image. This may be due to cross-origin images. Try using a custom uploaded image or a different template.');
           this.isDownloading = false;
-        })
-        .catch(error => {
-          console.error('Error preparing meme for download:', error);
-          alert('An error occurred while preparing the meme for download. Please try again.');
-          this.isDownloading = false;
-        });
+          return;
+        }
+
+        const link = document.createElement('a');
+        link.href = dataURL;
+        link.download = `meme-${Date.now()}.${extension}`;
+        link.style.display = 'none';
+
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        this.isDownloading = false;
+      }).catch(error => {
+        console.error('Error preparing meme for download:', error);
+        alert('An error occurred while preparing the meme for download. Please try again.');
+        this.isDownloading = false;
+      });
     } catch (error) {
       console.error('Error in downloadMeme:', error);
       alert('An unexpected error occurred while downloading the meme. Please try again.');
@@ -2076,25 +2128,22 @@ class MemeGenerator extends HTMLElement {
       this.renderCanvas();
       this.updateUndoRedoButtons();
 
-      // Reset template selection
       this.templatesContainer.querySelectorAll('.template-option').forEach(el => {
         el.classList.remove('selected');
       });
     }
   }
 
-  // Detect when element is connected to DOM
+  // Connected callback
   connectedCallback() {
-    // Add default text when first connecting
     if (this.state.textLayers.length === 0) {
       this.addTextLayer();
     }
 
-    // Preload fonts to prevent layout shifts
     this.preloadFonts();
   }
 
-  // Preload fonts to avoid FOUT (Flash of Unstyled Text)
+  // Preload fonts
   preloadFonts() {
     const fontPreloader = document.createElement('div');
     fontPreloader.style.opacity = '0';
