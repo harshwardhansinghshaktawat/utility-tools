@@ -1863,33 +1863,55 @@ class MemeGenerator extends HTMLElement {
     });
   }
 
-  // Handle canvas mouse events
+  // Handle canvas mouse events - FIXED for proper dragging
   handleCanvasMouseDown(e) {
     const rect = this.canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const scaleX = this.canvas.width / rect.width;
+    const scaleY = this.canvas.height / rect.height;
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
 
-    // Check text layers
+    // Set canvas cursor style
+    this.canvas.style.cursor = 'grab';
+
+    // Check text layers (top to bottom for proper layering)
     for (let i = this.state.textLayers.length - 1; i >= 0; i--) {
       const layer = this.state.textLayers[i];
       if (layer.draggable) {
-        this.ctx.font = `${layer.fontSize}px ${layer.fontFamily}`;
-        const textWidth = this.ctx.measureText(layer.text).width;
+        // Create temporary context to measure text
+        const tempCanvas = document.createElement('canvas');
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.font = `${layer.fontSize}px ${layer.fontFamily}`;
+        const metrics = tempCtx.measureText(layer.text);
+        const textWidth = metrics.width;
         const textHeight = layer.fontSize;
 
-        let textX = layer.x;
+        // Calculate text bounds based on alignment
+        let textLeft, textRight, textTop, textBottom;
+        
         if (layer.align === 'center') {
-          textX = layer.x - (textWidth / 2);
+          textLeft = layer.x - (textWidth / 2);
+          textRight = layer.x + (textWidth / 2);
         } else if (layer.align === 'right') {
-          textX = layer.x - textWidth;
+          textLeft = layer.x - textWidth;
+          textRight = layer.x;
+        } else { // left
+          textLeft = layer.x;
+          textRight = layer.x + textWidth;
         }
+        
+        textTop = layer.y - (textHeight / 2);
+        textBottom = layer.y + (textHeight / 2);
 
-        if (x >= textX - 10 && x <= textX + textWidth + 10 &&
-            y >= layer.y - (textHeight / 2) - 10 && y <= layer.y + (textHeight / 2) + 10) {
+        // Add some padding for easier clicking
+        const padding = 10;
+        if (x >= textLeft - padding && x <= textRight + padding &&
+            y >= textTop - padding && y <= textBottom + padding) {
           this.state.isDragging = true;
           this.state.selectedElement = { type: 'text', index: i };
           this.state.dragOffsetX = x - layer.x;
           this.state.dragOffsetY = y - layer.y;
+          this.canvas.style.cursor = 'grabbing';
           return;
         }
       }
@@ -1905,6 +1927,7 @@ class MemeGenerator extends HTMLElement {
           this.state.selectedElement = { type: 'speechBubble', index: i };
           this.state.dragOffsetX = x - bubble.x;
           this.state.dragOffsetY = y - bubble.y;
+          this.canvas.style.cursor = 'grabbing';
           return;
         }
       }
@@ -1920,6 +1943,7 @@ class MemeGenerator extends HTMLElement {
           this.state.selectedElement = { type: 'image', index: i };
           this.state.dragOffsetX = x - image.x;
           this.state.dragOffsetY = y - image.y;
+          this.canvas.style.cursor = 'grabbing';
           return;
         }
       }
@@ -1929,53 +1953,76 @@ class MemeGenerator extends HTMLElement {
     for (let i = this.state.shapes.length - 1; i >= 0; i--) {
       const shape = this.state.shapes[i];
       if (shape.draggable) {
+        let isInShape = false;
+        
         if (shape.shapeType === 'square') {
-          if (x >= shape.x - (shape.width / 2) && x <= shape.x + (shape.width / 2) &&
-              y >= shape.y - (shape.height / 2) && y <= shape.y + (shape.height / 2)) {
-            this.state.isDragging = true;
-            this.state.selectedElement = { type: 'shape', index: i };
-            this.state.dragOffsetX = x - shape.x;
-            this.state.dragOffsetY = y - shape.y;
-            return;
-          }
+          isInShape = (x >= shape.x - (shape.width / 2) && x <= shape.x + (shape.width / 2) &&
+                      y >= shape.y - (shape.height / 2) && y <= shape.y + (shape.height / 2));
         } else if (shape.shapeType === 'circle') {
           const distance = Math.sqrt(Math.pow(x - shape.x, 2) + Math.pow(y - shape.y, 2));
-          if (distance <= shape.width / 2) {
-            this.state.isDragging = true;
-            this.state.selectedElement = { type: 'shape', index: i };
-            this.state.dragOffsetX = x - shape.x;
-            this.state.dragOffsetY = y - shape.y;
-            return;
-          }
+          isInShape = distance <= (shape.width / 2);
+        }
+        
+        if (isInShape) {
+          this.state.isDragging = true;
+          this.state.selectedElement = { type: 'shape', index: i };
+          this.state.dragOffsetX = x - shape.x;
+          this.state.dragOffsetY = y - shape.y;
+          this.canvas.style.cursor = 'grabbing';
+          return;
         }
       }
     }
+    
+    // If no element was clicked, reset cursor
+    this.canvas.style.cursor = 'default';
   }
 
   handleCanvasMouseMove(e) {
-    if (this.state.isDragging && this.state.selectedElement) {
-      const rect = this.canvas.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
+    const rect = this.canvas.getBoundingClientRect();
+    const scaleX = this.canvas.width / rect.width;
+    const scaleY = this.canvas.height / rect.height;
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
 
+    if (this.state.isDragging && this.state.selectedElement) {
+      // Calculate new position
+      const newX = x - this.state.dragOffsetX;
+      const newY = y - this.state.dragOffsetY;
+
+      // Update element position based on type
       if (this.state.selectedElement.type === 'text') {
         const layer = this.state.textLayers[this.state.selectedElement.index];
-        layer.x = x - this.state.dragOffsetX;
-        layer.y = y - this.state.dragOffsetY;
+        if (layer) {
+          layer.x = Math.max(0, Math.min(this.canvas.width, newX));
+          layer.y = Math.max(0, Math.min(this.canvas.height, newY));
+        }
       } else if (this.state.selectedElement.type === 'image') {
         const image = this.state.uploadedImages[this.state.selectedElement.index];
-        image.x = x - this.state.dragOffsetX;
-        image.y = y - this.state.dragOffsetY;
+        if (image) {
+          image.x = Math.max(-image.width/2, Math.min(this.canvas.width - image.width/2, newX));
+          image.y = Math.max(-image.height/2, Math.min(this.canvas.height - image.height/2, newY));
+        }
       } else if (this.state.selectedElement.type === 'shape') {
         const shape = this.state.shapes[this.state.selectedElement.index];
-        shape.x = x - this.state.dragOffsetX;
-        shape.y = y - this.state.dragOffsetY;
+        if (shape) {
+          if (shape.shapeType === 'square') {
+            shape.x = Math.max(shape.width/2, Math.min(this.canvas.width - shape.width/2, newX));
+            shape.y = Math.max(shape.height/2, Math.min(this.canvas.height - shape.height/2, newY));
+          } else if (shape.shapeType === 'circle') {
+            shape.x = Math.max(shape.width/2, Math.min(this.canvas.width - shape.width/2, newX));
+            shape.y = Math.max(shape.width/2, Math.min(this.canvas.height - shape.width/2, newY));
+          }
+        }
       } else if (this.state.selectedElement.type === 'speechBubble') {
         const bubble = this.state.speechBubbles[this.state.selectedElement.index];
-        bubble.x = x - this.state.dragOffsetX;
-        bubble.y = y - this.state.dragOffsetY;
+        if (bubble) {
+          bubble.x = Math.max(-bubble.width/4, Math.min(this.canvas.width - bubble.width + bubble.width/4, newX));
+          bubble.y = Math.max(-bubble.height/4, Math.min(this.canvas.height - bubble.height + bubble.height/4, newY));
+        }
       }
 
+      // Throttle rendering for better performance
       if (!this.renderPending) {
         this.renderPending = true;
         requestAnimationFrame(() => {
@@ -1983,6 +2030,51 @@ class MemeGenerator extends HTMLElement {
           this.renderPending = false;
         });
       }
+    } else {
+      // Update cursor when hovering over draggable elements
+      let isOverDraggable = false;
+      
+      // Check if hovering over any draggable element
+      [...this.state.textLayers, ...this.state.speechBubbles, ...this.state.uploadedImages, ...this.state.shapes].forEach(element => {
+        if (element.draggable) {
+          let isOver = false;
+          
+          if (element.type === 'text') {
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.font = `${element.fontSize}px ${element.fontFamily}`;
+            const textWidth = tempCtx.measureText(element.text).width;
+            const textHeight = element.fontSize;
+            
+            let textLeft = element.x;
+            if (element.align === 'center') textLeft = element.x - textWidth/2;
+            else if (element.align === 'right') textLeft = element.x - textWidth;
+            
+            isOver = (x >= textLeft - 10 && x <= textLeft + textWidth + 10 &&
+                     y >= element.y - textHeight/2 - 10 && y <= element.y + textHeight/2 + 10);
+          } else if (element.type === 'speechBubble') {
+            isOver = (x >= element.x && x <= element.x + element.width &&
+                     y >= element.y && y <= element.y + element.height);
+          } else if (element.type === 'image') {
+            isOver = (x >= element.x && x <= element.x + element.width &&
+                     y >= element.y && y <= element.y + element.height);
+          } else if (element.type === 'shape') {
+            if (element.shapeType === 'square') {
+              isOver = (x >= element.x - element.width/2 && x <= element.x + element.width/2 &&
+                       y >= element.y - element.height/2 && y <= element.y + element.height/2);
+            } else if (element.shapeType === 'circle') {
+              const distance = Math.sqrt(Math.pow(x - element.x, 2) + Math.pow(y - element.y, 2));
+              isOver = distance <= element.width/2;
+            }
+          }
+          
+          if (isOver) {
+            isOverDraggable = true;
+          }
+        }
+      });
+      
+      this.canvas.style.cursor = isOverDraggable ? 'grab' : 'default';
     }
   }
 
@@ -1991,6 +2083,7 @@ class MemeGenerator extends HTMLElement {
       this.saveState();
       this.state.isDragging = false;
       this.state.selectedElement = null;
+      this.canvas.style.cursor = 'default';
       this.updateUndoRedoButtons();
     }
   }
