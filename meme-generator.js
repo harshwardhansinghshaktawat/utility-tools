@@ -2001,18 +2001,12 @@ class MemeGenerator extends HTMLElement {
     this.redoBtn.disabled = this.state.redoStack.length === 0;
   }
 
-  // FIXED Download the meme as an image
+  // FIXED Download the meme as an image - No background, only content
   downloadMeme(format = 'png') {
     if (this.isDownloading) return;
     this.isDownloading = true;
 
     try {
-      // Create a fresh canvas for download to avoid CORS issues
-      const downloadCanvas = document.createElement('canvas');
-      downloadCanvas.width = this.canvas.width;
-      downloadCanvas.height = this.canvas.height;
-      const downloadCtx = downloadCanvas.getContext('2d');
-
       const loadAllImages = () => {
         return new Promise((resolve, reject) => {
           let pendingImages = 0;
@@ -2073,62 +2067,175 @@ class MemeGenerator extends HTMLElement {
         });
       };
 
+      const calculateContentBounds = () => {
+        const template = this.state.selectedTemplate
+          ? this.state.templates.find(t => t.id === this.state.selectedTemplate)
+          : null;
+
+        // If we have a template image, use its original dimensions
+        if (template && template.url && this.state.imageCache[template.url] && this.state.selectedTemplate !== 'custom') {
+          const img = this.state.imageCache[template.url];
+          return {
+            width: img.width,
+            height: img.height,
+            offsetX: 0,
+            offsetY: 0,
+            scaleX: img.width / this.canvas.width,
+            scaleY: img.height / this.canvas.height
+          };
+        }
+
+        // If no template, calculate bounding box of all content
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        let hasContent = false;
+
+        // Check text layers
+        this.state.textLayers.forEach(layer => {
+          const tempCtx = document.createElement('canvas').getContext('2d');
+          tempCtx.font = `${layer.fontSize}px ${layer.fontFamily}`;
+          const textWidth = tempCtx.measureText(layer.text).width;
+          const textHeight = layer.fontSize;
+
+          let textX = layer.x;
+          if (layer.align === 'center') {
+            textX = layer.x - (textWidth / 2);
+          } else if (layer.align === 'right') {
+            textX = layer.x - textWidth;
+          }
+
+          minX = Math.min(minX, textX);
+          minY = Math.min(minY, layer.y - textHeight / 2);
+          maxX = Math.max(maxX, textX + textWidth);
+          maxY = Math.max(maxY, layer.y + textHeight / 2);
+          hasContent = true;
+        });
+
+        // Check uploaded images
+        this.state.uploadedImages.forEach(image => {
+          minX = Math.min(minX, image.x);
+          minY = Math.min(minY, image.y);
+          maxX = Math.max(maxX, image.x + image.width);
+          maxY = Math.max(maxY, image.y + image.height);
+          hasContent = true;
+        });
+
+        // Check shapes
+        this.state.shapes.forEach(shape => {
+          if (shape.shapeType === 'square') {
+            minX = Math.min(minX, shape.x - shape.width / 2);
+            minY = Math.min(minY, shape.y - shape.height / 2);
+            maxX = Math.max(maxX, shape.x + shape.width / 2);
+            maxY = Math.max(maxY, shape.y + shape.height / 2);
+          } else if (shape.shapeType === 'circle') {
+            minX = Math.min(minX, shape.x - shape.width / 2);
+            minY = Math.min(minY, shape.y - shape.width / 2);
+            maxX = Math.max(maxX, shape.x + shape.width / 2);
+            maxY = Math.max(maxY, shape.y + shape.width / 2);
+          }
+          hasContent = true;
+        });
+
+        // Check speech bubbles
+        this.state.speechBubbles.forEach(bubble => {
+          minX = Math.min(minX, bubble.x);
+          minY = Math.min(minY, bubble.y);
+          maxX = Math.max(maxX, bubble.x + bubble.width);
+          maxY = Math.max(maxY, bubble.y + bubble.height);
+          hasContent = true;
+        });
+
+        // If no content, return default canvas size
+        if (!hasContent) {
+          return {
+            width: this.canvas.width,
+            height: this.canvas.height,
+            offsetX: 0,
+            offsetY: 0,
+            scaleX: 1,
+            scaleY: 1
+          };
+        }
+
+        // Add some padding around content
+        const padding = 20;
+        minX -= padding;
+        minY -= padding;
+        maxX += padding;
+        maxY += padding;
+
+        // Ensure bounds are within canvas
+        minX = Math.max(0, minX);
+        minY = Math.max(0, minY);
+        maxX = Math.min(this.canvas.width, maxX);
+        maxY = Math.min(this.canvas.height, maxY);
+
+        return {
+          width: Math.ceil(maxX - minX),
+          height: Math.ceil(maxY - minY),
+          offsetX: minX,
+          offsetY: minY,
+          scaleX: 1,
+          scaleY: 1
+        };
+      };
+
       const renderToDownloadCanvas = () => {
-        // Clear the download canvas
+        const bounds = calculateContentBounds();
+        
+        // Create canvas with content-specific dimensions
+        const downloadCanvas = document.createElement('canvas');
+        downloadCanvas.width = bounds.width;
+        downloadCanvas.height = bounds.height;
+        const downloadCtx = downloadCanvas.getContext('2d');
+
+        // Calculate scaling and positioning
+        const canvasScaleX = bounds.scaleX;
+        const canvasScaleY = bounds.scaleY;
+
+        // Clear the download canvas (transparent for PNG, white for JPG)
         downloadCtx.clearRect(0, 0, downloadCanvas.width, downloadCanvas.height);
+        
+        if (format === 'jpg') {
+          // JPG doesn't support transparency, so fill with white
+          downloadCtx.fillStyle = '#FFFFFF';
+          downloadCtx.fillRect(0, 0, downloadCanvas.width, downloadCanvas.height);
+        }
 
         // Draw background template if exists
         if (this.state.selectedTemplate && this.state.selectedTemplate !== 'custom') {
           const template = this.state.templates.find(t => t.id === this.state.selectedTemplate);
           if (template && template.url && this.state.imageCache[template.url]) {
             const img = this.state.imageCache[template.url];
-            
-            const canvasAspect = downloadCanvas.width / downloadCanvas.height;
-            const imageAspect = img.width / img.height;
-            
-            let drawWidth, drawHeight, drawX, drawY;
-            
-            if (imageAspect > canvasAspect) {
-              drawWidth = downloadCanvas.width;
-              drawHeight = downloadCanvas.width / imageAspect;
-              drawX = 0;
-              drawY = (downloadCanvas.height - drawHeight) / 2;
-            } else {
-              drawHeight = downloadCanvas.height;
-              drawWidth = downloadCanvas.height * imageAspect;
-              drawY = 0;
-              drawX = (downloadCanvas.width - drawWidth) / 2;
-            }
-            
-            downloadCtx.fillStyle = '#FFFFFF';
-            downloadCtx.fillRect(0, 0, downloadCanvas.width, downloadCanvas.height);
-            downloadCtx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
-          } else {
-            // White background if no template
-            downloadCtx.fillStyle = '#FFFFFF';
-            downloadCtx.fillRect(0, 0, downloadCanvas.width, downloadCanvas.height);
+            // Draw template at its original size
+            downloadCtx.drawImage(img, 0, 0, bounds.width, bounds.height);
           }
-        } else {
-          // White background for custom
-          downloadCtx.fillStyle = '#FFFFFF';
-          downloadCtx.fillRect(0, 0, downloadCanvas.width, downloadCanvas.height);
         }
+
+        // Helper function to transform coordinates
+        const transformX = (x) => (x - bounds.offsetX) * canvasScaleX;
+        const transformY = (y) => (y - bounds.offsetY) * canvasScaleY;
+        const transformSize = (size, axis) => size * (axis === 'x' ? canvasScaleX : canvasScaleY);
 
         // Draw shapes
         this.state.shapes.forEach(shape => {
           downloadCtx.globalAlpha = shape.opacity;
           downloadCtx.fillStyle = shape.color;
 
+          const shapeX = transformX(shape.x);
+          const shapeY = transformY(shape.y);
+          const shapeWidth = transformSize(shape.width, 'x');
+          const shapeHeight = transformSize(shape.height, 'y');
+
           if (shape.shapeType === 'square') {
             downloadCtx.fillRect(
-              shape.x - (shape.width / 2),
-              shape.y - (shape.height / 2),
-              shape.width,
-              shape.height
+              shapeX - (shapeWidth / 2),
+              shapeY - (shapeHeight / 2),
+              shapeWidth,
+              shapeHeight
             );
           } else if (shape.shapeType === 'circle') {
             downloadCtx.beginPath();
-            downloadCtx.arc(shape.x, shape.y, shape.width / 2, 0, Math.PI * 2);
+            downloadCtx.arc(shapeX, shapeY, shapeWidth / 2, 0, Math.PI * 2);
             downloadCtx.fill();
           }
         });
@@ -2138,9 +2245,14 @@ class MemeGenerator extends HTMLElement {
         // Draw uploaded images
         this.state.uploadedImages.forEach(image => {
           if (this.state.imageCache[image.src]) {
+            const imgX = transformX(image.x);
+            const imgY = transformY(image.y);
+            const imgWidth = transformSize(image.width, 'x');
+            const imgHeight = transformSize(image.height, 'y');
+            
             downloadCtx.drawImage(
               this.state.imageCache[image.src],
-              image.x, image.y, image.width, image.height
+              imgX, imgY, imgWidth, imgHeight
             );
           }
         });
@@ -2148,34 +2260,46 @@ class MemeGenerator extends HTMLElement {
         // Draw speech bubbles
         this.state.speechBubbles.forEach(bubble => {
           if (this.state.imageCache[bubble.src]) {
+            const bubbleX = transformX(bubble.x);
+            const bubbleY = transformY(bubble.y);
+            const bubbleWidth = transformSize(bubble.width, 'x');
+            const bubbleHeight = transformSize(bubble.height, 'y');
+            
             downloadCtx.drawImage(
               this.state.imageCache[bubble.src],
-              bubble.x, bubble.y, bubble.width, bubble.height
+              bubbleX, bubbleY, bubbleWidth, bubbleHeight
             );
           }
         });
 
         // Draw text layers
         this.state.textLayers.forEach(layer => {
-          downloadCtx.font = `${layer.fontSize}px ${layer.fontFamily}`;
+          const fontSize = transformSize(layer.fontSize, 'y');
+          const strokeWidth = transformSize(layer.strokeWidth, 'y');
+          const textX = transformX(layer.x);
+          const textY = transformY(layer.y);
+
+          downloadCtx.font = `${fontSize}px ${layer.fontFamily}`;
           downloadCtx.textAlign = layer.align;
           downloadCtx.textBaseline = 'middle';
 
-          if (layer.strokeWidth > 0) {
-            downloadCtx.lineWidth = layer.strokeWidth;
+          if (strokeWidth > 0) {
+            downloadCtx.lineWidth = strokeWidth;
             downloadCtx.strokeStyle = layer.strokeColor;
-            downloadCtx.strokeText(layer.text, layer.x, layer.y);
+            downloadCtx.strokeText(layer.text, textX, textY);
           }
 
           downloadCtx.fillStyle = layer.color;
-          downloadCtx.fillText(layer.text, layer.x, layer.y);
+          downloadCtx.fillText(layer.text, textX, textY);
         });
+
+        return downloadCanvas;
       };
 
       // Load all images and then render and download
       loadAllImages().then(() => {
         try {
-          renderToDownloadCanvas();
+          const downloadCanvas = renderToDownloadCanvas();
 
           // Convert to blob for better browser support
           downloadCanvas.toBlob((blob) => {
