@@ -2001,109 +2001,224 @@ class MemeGenerator extends HTMLElement {
     this.redoBtn.disabled = this.state.redoStack.length === 0;
   }
 
-  // Download the meme as an image
+  // FIXED Download the meme as an image
   downloadMeme(format = 'png') {
     if (this.isDownloading) return;
     this.isDownloading = true;
 
     try {
+      // Create a fresh canvas for download to avoid CORS issues
+      const downloadCanvas = document.createElement('canvas');
+      downloadCanvas.width = this.canvas.width;
+      downloadCanvas.height = this.canvas.height;
+      const downloadCtx = downloadCanvas.getContext('2d');
+
       const loadAllImages = () => {
-        return new Promise((resolve) => {
+        return new Promise((resolve, reject) => {
           let pendingImages = 0;
+          const imagesToLoad = [];
+
+          // Collect all images that need to be loaded
           const template = this.state.selectedTemplate
             ? this.state.templates.find(t => t.id === this.state.selectedTemplate)
             : null;
 
-          if (template && template.url && !this.state.imageCache[template.url]) {
-            pendingImages++;
-            const img = new Image();
-            img.crossOrigin = 'Anonymous';
-            img.onload = () => {
-              this.state.imageCache[template.url] = img;
-              pendingImages--;
-              if (pendingImages === 0) resolve();
-            };
-            img.onerror = () => {
-              console.error(`Failed to load template image: ${template.url}`);
-              pendingImages--;
-              if (pendingImages === 0) resolve();
-            };
-            img.src = template.url;
+          if (template && template.url) {
+            imagesToLoad.push({ url: template.url, type: 'template' });
           }
 
           this.state.uploadedImages.forEach(image => {
-            if (!this.state.imageCache[image.src]) {
-              pendingImages++;
-              const img = new Image();
-              img.crossOrigin = 'Anonymous';
-              img.onload = () => {
-                this.state.imageCache[image.src] = img;
-                pendingImages--;
-                if (pendingImages === 0) resolve();
-              };
-              img.onerror = () => {
-                console.error(`Failed to load uploaded image: ${image.src}`);
-                pendingImages--;
-                if (pendingImages === 0) resolve();
-              };
-              img.src = image.src;
-            }
-          });
-          
-          this.state.speechBubbles.forEach(bubble => {
-            if (!this.state.imageCache[bubble.src]) {
-              pendingImages++;
-              const img = new Image();
-              img.crossOrigin = 'Anonymous';
-              img.onload = () => {
-                this.state.imageCache[bubble.src] = img;
-                pendingImages--;
-                if (pendingImages === 0) resolve();
-              };
-              img.onerror = () => {
-                console.error(`Failed to load speech bubble: ${bubble.src}`);
-                pendingImages--;
-                if (pendingImages === 0) resolve();
-              };
-              img.src = bubble.src;
-            }
+            imagesToLoad.push({ url: image.src, type: 'uploaded' });
           });
 
-          if (pendingImages === 0) resolve();
+          this.state.speechBubbles.forEach(bubble => {
+            imagesToLoad.push({ url: bubble.src, type: 'speechBubble' });
+          });
+
+          if (imagesToLoad.length === 0) {
+            resolve();
+            return;
+          }
+
+          pendingImages = imagesToLoad.length;
+
+          imagesToLoad.forEach(imageData => {
+            if (this.state.imageCache[imageData.url]) {
+              pendingImages--;
+              if (pendingImages === 0) resolve();
+            } else {
+              const img = new Image();
+              
+              // Handle CORS for external images
+              if (imageData.url.startsWith('http') && !imageData.url.startsWith(window.location.origin)) {
+                img.crossOrigin = 'anonymous';
+              }
+              
+              img.onload = () => {
+                this.state.imageCache[imageData.url] = img;
+                pendingImages--;
+                if (pendingImages === 0) resolve();
+              };
+              
+              img.onerror = (error) => {
+                console.warn(`Failed to load image for download: ${imageData.url}`, error);
+                // Continue without this image
+                pendingImages--;
+                if (pendingImages === 0) resolve();
+              };
+              
+              img.src = imageData.url;
+            }
+          });
         });
       };
 
-      loadAllImages().then(() => {
-        this.renderCanvas();
-        this.ctx.drawImage(this.bufferCanvas, 0, 0);
+      const renderToDownloadCanvas = () => {
+        // Clear the download canvas
+        downloadCtx.clearRect(0, 0, downloadCanvas.width, downloadCanvas.height);
 
-        const mimeType = format === 'jpg' ? 'image/jpeg' : 'image/png';
-        const extension = format === 'jpg' ? 'jpg' : 'png';
-
-        let dataURL;
-        try {
-          dataURL = this.canvas.toDataURL(mimeType, format === 'jpg' ? 0.9 : 1.0);
-        } catch (error) {
-          console.error('Error generating data URL:', error);
-          alert('Failed to generate meme image. This may be due to cross-origin images. Try using a custom uploaded image or a different template.');
-          this.isDownloading = false;
-          return;
+        // Draw background template if exists
+        if (this.state.selectedTemplate && this.state.selectedTemplate !== 'custom') {
+          const template = this.state.templates.find(t => t.id === this.state.selectedTemplate);
+          if (template && template.url && this.state.imageCache[template.url]) {
+            const img = this.state.imageCache[template.url];
+            
+            const canvasAspect = downloadCanvas.width / downloadCanvas.height;
+            const imageAspect = img.width / img.height;
+            
+            let drawWidth, drawHeight, drawX, drawY;
+            
+            if (imageAspect > canvasAspect) {
+              drawWidth = downloadCanvas.width;
+              drawHeight = downloadCanvas.width / imageAspect;
+              drawX = 0;
+              drawY = (downloadCanvas.height - drawHeight) / 2;
+            } else {
+              drawHeight = downloadCanvas.height;
+              drawWidth = downloadCanvas.height * imageAspect;
+              drawY = 0;
+              drawX = (downloadCanvas.width - drawWidth) / 2;
+            }
+            
+            downloadCtx.fillStyle = '#FFFFFF';
+            downloadCtx.fillRect(0, 0, downloadCanvas.width, downloadCanvas.height);
+            downloadCtx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
+          } else {
+            // White background if no template
+            downloadCtx.fillStyle = '#FFFFFF';
+            downloadCtx.fillRect(0, 0, downloadCanvas.width, downloadCanvas.height);
+          }
+        } else {
+          // White background for custom
+          downloadCtx.fillStyle = '#FFFFFF';
+          downloadCtx.fillRect(0, 0, downloadCanvas.width, downloadCanvas.height);
         }
 
-        const link = document.createElement('a');
-        link.href = dataURL;
-        link.download = `meme-${Date.now()}.${extension}`;
-        link.style.display = 'none';
+        // Draw shapes
+        this.state.shapes.forEach(shape => {
+          downloadCtx.globalAlpha = shape.opacity;
+          downloadCtx.fillStyle = shape.color;
 
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        this.isDownloading = false;
+          if (shape.shapeType === 'square') {
+            downloadCtx.fillRect(
+              shape.x - (shape.width / 2),
+              shape.y - (shape.height / 2),
+              shape.width,
+              shape.height
+            );
+          } else if (shape.shapeType === 'circle') {
+            downloadCtx.beginPath();
+            downloadCtx.arc(shape.x, shape.y, shape.width / 2, 0, Math.PI * 2);
+            downloadCtx.fill();
+          }
+        });
+
+        downloadCtx.globalAlpha = 1;
+
+        // Draw uploaded images
+        this.state.uploadedImages.forEach(image => {
+          if (this.state.imageCache[image.src]) {
+            downloadCtx.drawImage(
+              this.state.imageCache[image.src],
+              image.x, image.y, image.width, image.height
+            );
+          }
+        });
+
+        // Draw speech bubbles
+        this.state.speechBubbles.forEach(bubble => {
+          if (this.state.imageCache[bubble.src]) {
+            downloadCtx.drawImage(
+              this.state.imageCache[bubble.src],
+              bubble.x, bubble.y, bubble.width, bubble.height
+            );
+          }
+        });
+
+        // Draw text layers
+        this.state.textLayers.forEach(layer => {
+          downloadCtx.font = `${layer.fontSize}px ${layer.fontFamily}`;
+          downloadCtx.textAlign = layer.align;
+          downloadCtx.textBaseline = 'middle';
+
+          if (layer.strokeWidth > 0) {
+            downloadCtx.lineWidth = layer.strokeWidth;
+            downloadCtx.strokeStyle = layer.strokeColor;
+            downloadCtx.strokeText(layer.text, layer.x, layer.y);
+          }
+
+          downloadCtx.fillStyle = layer.color;
+          downloadCtx.fillText(layer.text, layer.x, layer.y);
+        });
+      };
+
+      // Load all images and then render and download
+      loadAllImages().then(() => {
+        try {
+          renderToDownloadCanvas();
+
+          // Convert to blob for better browser support
+          downloadCanvas.toBlob((blob) => {
+            if (!blob) {
+              console.error('Failed to create blob from canvas');
+              alert('Failed to generate meme image. Please try again.');
+              this.isDownloading = false;
+              return;
+            }
+
+            // Create download link
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            const extension = format === 'jpg' ? 'jpg' : 'png';
+            
+            link.href = url;
+            link.download = `meme-${Date.now()}.${extension}`;
+            link.style.display = 'none';
+
+            // Trigger download
+            document.body.appendChild(link);
+            link.click();
+            
+            // Cleanup
+            setTimeout(() => {
+              document.body.removeChild(link);
+              URL.revokeObjectURL(url);
+            }, 100);
+
+            this.isDownloading = false;
+          }, format === 'jpg' ? 'image/jpeg' : 'image/png', format === 'jpg' ? 0.9 : 1.0);
+
+        } catch (error) {
+          console.error('Error rendering canvas for download:', error);
+          alert('Failed to generate meme image. Please try again.');
+          this.isDownloading = false;
+        }
       }).catch(error => {
-        console.error('Error preparing meme for download:', error);
-        alert('An error occurred while preparing the meme for download. Please try again.');
+        console.error('Error loading images for download:', error);
+        alert('Failed to load all images for download. Please try again.');
         this.isDownloading = false;
       });
+
     } catch (error) {
       console.error('Error in downloadMeme:', error);
       alert('An unexpected error occurred while downloading the meme. Please try again.');
@@ -2164,5 +2279,15 @@ class MemeGenerator extends HTMLElement {
   }
 }
 
-// Register the custom element
+// Register the custom element for Wix
 customElements.define('meme-generator', MemeGenerator);
+
+// Wix Custom Element Export
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = MemeGenerator;
+}
+
+// Global registration for Wix environment
+if (typeof window !== 'undefined' && window.customElements) {
+  window.MemeGenerator = MemeGenerator;
+}
