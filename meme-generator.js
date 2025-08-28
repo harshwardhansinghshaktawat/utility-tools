@@ -10,6 +10,7 @@ class MemeGenerator extends HTMLElement {
       shapes: [],
       speechBubbles: [],
       uploadedImages: [],
+      drawings: [], // Add drawings array for draw tool
       canvasWidth: 600,
       canvasHeight: 600,
       undoStack: [],
@@ -19,10 +20,51 @@ class MemeGenerator extends HTMLElement {
       dragOffsetX: 0,
       dragOffsetY: 0,
       imageCache: {},
-      collapsedSections: {}, // Track collapsed sections
+      collapsedSections: {
+        // Default collapsed sections
+        text: true,
+        images: false,
+        shapes: true,
+        speech: false,
+        drawing: false
+      },
+      // Drawing tool state
+      isDrawing: false,
+      drawingMode: false,
+      brushSize: 5,
+      brushColor: '#000000',
+      lastDrawPoint: null,
+      currentPath: [],
       fonts: [
-        'Impact', 'Arial', 'Comic Sans MS', 'Helvetica', 'Times New Roman',
-        'Courier New', 'Verdana', 'Georgia', 'Palatino', 'Garamond'
+        // Meme fonts
+        'Impact', 'Anton', 'Bebas Neue', 'Oswald', 'Russo One',
+        'Fredoka One', 'Bungee', 'Permanent Marker', 'Creepster',
+        'Press Start 2P', 'Monoton', 'Black Ops One', 'Orbitron',
+        
+        // Standard fonts
+        'Arial', 'Comic Sans MS', 'Helvetica', 'Times New Roman',
+        'Courier New', 'Verdana', 'Georgia', 'Palatino', 'Garamond',
+        
+        // Japanese fonts
+        'Hiragino Sans', 'Yu Gothic', 'Meiryo', 'MS Gothic', 
+        'Noto Sans JP', 'Kosugi Maru', 'M PLUS 1p',
+        
+        // Hindi fonts
+        'Noto Sans Devanagari', 'Mangal', 'Kokila', 'Utsaah',
+        'Aparajita', 'Sanskrit Text',
+        
+        // Korean fonts
+        'Malgun Gothic', 'Dotum', 'Gulim', 'Batang', 'Gungsuh',
+        'Noto Sans KR', 'Jua',
+        
+        // Chinese fonts
+        'SimSun', 'Microsoft YaHei', 'SimHei', 'Noto Sans SC',
+        
+        // Arabic fonts
+        'Tahoma', 'Arial Unicode MS', 'Noto Sans Arabic',
+        
+        // Other international
+        'Noto Sans', 'Roboto', 'Open Sans'
       ],
       templates: [
         {
@@ -156,6 +198,7 @@ class MemeGenerator extends HTMLElement {
           --light-color: #ecf0f1;
           --success-color: #2ecc71;
           --danger-color: #e74c3c;
+          --warning-color: #f39c12;
           --border-radius: 6px;
           --shadow: 0 1px 3px rgba(0,0,0,0.1);
           --border: 1px solid #e1e5e9;
@@ -298,6 +341,15 @@ class MemeGenerator extends HTMLElement {
           height: auto;
           margin: 10px 0;
           box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          cursor: crosshair;
+        }
+
+        #meme-canvas.drawing-mode {
+          cursor: crosshair;
+        }
+
+        #meme-canvas:not(.drawing-mode) {
+          cursor: default;
         }
 
         #buffer-canvas {
@@ -351,6 +403,49 @@ class MemeGenerator extends HTMLElement {
 
         .control-group-content.collapsed {
           display: none;
+        }
+
+        /* Text Presets */
+        .text-presets {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 4px;
+          margin-bottom: 12px;
+        }
+
+        .text-presets button {
+          font-size: 11px;
+          padding: 4px 8px;
+          min-height: 26px;
+        }
+
+        /* Drawing Tool Styles */
+        .drawing-controls {
+          margin-bottom: 12px;
+        }
+
+        .drawing-mode-toggle {
+          background-color: var(--warning-color);
+          margin-bottom: 8px;
+        }
+
+        .drawing-mode-toggle:hover {
+          background-color: #e67e22;
+        }
+
+        .drawing-mode-toggle.active {
+          background-color: var(--success-color);
+        }
+
+        .drawing-mode-toggle.active:hover {
+          background-color: #27ae60;
+        }
+
+        .drawing-brush-controls {
+          display: grid;
+          grid-template-columns: 1fr 80px;
+          gap: 8px;
+          align-items: end;
         }
 
         /* Compact Speech Bubbles Grid */
@@ -419,6 +514,14 @@ class MemeGenerator extends HTMLElement {
 
         button.success:hover {
           background-color: #27ae60;
+        }
+
+        button.warning {
+          background-color: var(--warning-color);
+        }
+
+        button.warning:hover {
+          background-color: #e67e22;
         }
 
         button:disabled {
@@ -678,13 +781,48 @@ class MemeGenerator extends HTMLElement {
           <div class="sidebar">
             <!-- Text Layers Section -->
             <div class="control-group">
-              <div class="control-group-header" data-section="text">
+              <div class="control-group-header collapsed" data-section="text">
                 <h3>✏️ Text Layers</h3>
                 <span class="toggle-icon">▼</span>
               </div>
-              <div class="control-group-content" data-content="text">
+              <div class="control-group-content collapsed" data-content="text">
+                <!-- Text Presets -->
+                <div class="text-presets">
+                  <button class="preset-btn" data-preset="2">+ 2 Text</button>
+                  <button class="preset-btn" data-preset="3">+ 3 Text</button>
+                  <button class="preset-btn" data-preset="4">+ 4 Text</button>
+                  <button class="preset-btn" data-preset="5">+ 5 Text</button>
+                </div>
                 <button id="add-text-btn" class="w-full">+ Add Text</button>
                 <div id="text-layers-container"></div>
+              </div>
+            </div>
+
+            <!-- Drawing Tool Section -->
+            <div class="control-group">
+              <div class="control-group-header" data-section="drawing">
+                <h3>🎨 Drawing Tool</h3>
+                <span class="toggle-icon">▼</span>
+              </div>
+              <div class="control-group-content" data-content="drawing">
+                <button id="drawing-mode-toggle" class="drawing-mode-toggle w-full">Enable Drawing Mode</button>
+                
+                <div class="drawing-controls">
+                  <div class="drawing-brush-controls">
+                    <div>
+                      <label>Brush Size: <span class="value-display" id="brush-size-display">5px</span></label>
+                      <input type="range" id="brush-size-input" min="1" max="50" value="5">
+                    </div>
+                    <div>
+                      <label><span class="color-preview" id="brush-color-preview" style="background-color: #000000"></span>Color</label>
+                      <input type="color" id="brush-color-input" value="#000000">
+                    </div>
+                  </div>
+                  
+                  <div class="btn-group">
+                    <button id="clear-drawing-btn" class="danger">Clear Drawing</button>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -707,11 +845,11 @@ class MemeGenerator extends HTMLElement {
 
             <!-- Shapes Section -->
             <div class="control-group">
-              <div class="control-group-header" data-section="shapes">
+              <div class="control-group-header collapsed" data-section="shapes">
                 <h3>🔷 Shapes</h3>
                 <span class="toggle-icon">▼</span>
               </div>
-              <div class="control-group-content" data-content="shapes">
+              <div class="control-group-content collapsed" data-content="shapes">
                 <div class="btn-group">
                   <button id="add-square-btn">⬜ Square</button>
                   <button id="add-circle-btn">🔵 Circle</button>
@@ -782,6 +920,14 @@ class MemeGenerator extends HTMLElement {
     this.speechBubblesGrid = this.shadowRoot.getElementById('speech-bubbles-grid');
     this.speechBubbleLayersContainer = this.shadowRoot.getElementById('speech-bubble-layers-container');
 
+    // Drawing tool elements
+    this.drawingModeToggle = this.shadowRoot.getElementById('drawing-mode-toggle');
+    this.brushSizeInput = this.shadowRoot.getElementById('brush-size-input');
+    this.brushColorInput = this.shadowRoot.getElementById('brush-color-input');
+    this.brushSizeDisplay = this.shadowRoot.getElementById('brush-size-display');
+    this.brushColorPreview = this.shadowRoot.getElementById('brush-color-preview');
+    this.clearDrawingBtn = this.shadowRoot.getElementById('clear-drawing-btn');
+
     // Setup collapsible sections
     this.setupCollapsibleSections();
 
@@ -794,11 +940,27 @@ class MemeGenerator extends HTMLElement {
     this.undoBtn.addEventListener('click', () => this.undo());
     this.redoBtn.addEventListener('click', () => this.redo());
 
+    // Text preset buttons
+    this.shadowRoot.querySelectorAll('.preset-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const presetCount = parseInt(e.target.getAttribute('data-preset'));
+        this.addTextPreset(presetCount);
+      });
+    });
+
+    // Drawing tool event listeners
+    this.setupDrawingEventListeners();
+
     // Canvas events
     this.canvas.addEventListener('mousedown', (e) => this.handleCanvasMouseDown(e));
     this.canvas.addEventListener('mousemove', (e) => this.handleCanvasMouseMove(e));
     this.canvas.addEventListener('mouseup', () => this.handleCanvasMouseUp());
     this.canvas.addEventListener('mouseleave', () => this.handleCanvasMouseUp());
+
+    // Touch events for mobile drawing
+    this.canvas.addEventListener('touchstart', (e) => this.handleCanvasTouchStart(e));
+    this.canvas.addEventListener('touchmove', (e) => this.handleCanvasTouchMove(e));
+    this.canvas.addEventListener('touchend', () => this.handleCanvasTouchEnd());
 
     // Export buttons
     this.shadowRoot.querySelectorAll('.export-btn').forEach(btn => {
@@ -811,6 +973,188 @@ class MemeGenerator extends HTMLElement {
     this.loadTemplates();
     this.loadSpeechBubbles();
     this.renderCanvas();
+  }
+
+  // Setup drawing tool event listeners
+  setupDrawingEventListeners() {
+    // Drawing mode toggle
+    this.drawingModeToggle.addEventListener('click', () => {
+      this.toggleDrawingMode();
+    });
+
+    // Brush size
+    this.brushSizeInput.addEventListener('input', (e) => {
+      this.state.brushSize = parseInt(e.target.value);
+      this.brushSizeDisplay.textContent = `${this.state.brushSize}px`;
+    });
+
+    // Brush color
+    this.brushColorInput.addEventListener('input', (e) => {
+      this.state.brushColor = e.target.value;
+      this.brushColorPreview.style.backgroundColor = e.target.value;
+    });
+
+    // Clear drawing
+    this.clearDrawingBtn.addEventListener('click', () => {
+      this.clearDrawing();
+    });
+  }
+
+  // Toggle drawing mode
+  toggleDrawingMode() {
+    this.state.drawingMode = !this.state.drawingMode;
+    
+    if (this.state.drawingMode) {
+      this.drawingModeToggle.textContent = 'Exit Drawing Mode';
+      this.drawingModeToggle.classList.add('active');
+      this.canvas.classList.add('drawing-mode');
+    } else {
+      this.drawingModeToggle.textContent = 'Enable Drawing Mode';
+      this.drawingModeToggle.classList.remove('active');
+      this.canvas.classList.remove('drawing-mode');
+    }
+  }
+
+  // Add text preset (multiple text layers at once)
+  addTextPreset(count) {
+    this.saveState();
+    
+    // Clear existing text layers
+    this.state.textLayers = [];
+    
+    // Positions for different preset counts
+    const presetPositions = {
+      2: [
+        { text: 'TOP TEXT', x: 300, y: 120 },
+        { text: 'BOTTOM TEXT', x: 300, y: 480 }
+      ],
+      3: [
+        { text: 'TOP TEXT', x: 300, y: 100 },
+        { text: 'MIDDLE TEXT', x: 300, y: 300 },
+        { text: 'BOTTOM TEXT', x: 300, y: 500 }
+      ],
+      4: [
+        { text: 'FIRST TEXT', x: 300, y: 80 },
+        { text: 'SECOND TEXT', x: 300, y: 220 },
+        { text: 'THIRD TEXT', x: 300, y: 380 },
+        { text: 'FOURTH TEXT', x: 300, y: 520 }
+      ],
+      5: [
+        { text: 'FIRST TEXT', x: 300, y: 70 },
+        { text: 'SECOND TEXT', x: 300, y: 180 },
+        { text: 'THIRD TEXT', x: 300, y: 300 },
+        { text: 'FOURTH TEXT', x: 300, y: 420 },
+        { text: 'FIFTH TEXT', x: 300, y: 530 }
+      ]
+    };
+    
+    const positions = presetPositions[count] || [];
+    
+    positions.forEach(pos => {
+      this.addTextLayer(pos.text, pos.x, pos.y);
+    });
+    
+    this.updateUndoRedoButtons();
+  }
+
+  // Clear all drawings
+  clearDrawing() {
+    if (this.state.drawings.length > 0) {
+      this.saveState();
+      this.state.drawings = [];
+      this.renderCanvas();
+      this.updateUndoRedoButtons();
+    }
+  }
+
+  // Handle touch events for drawing
+  handleCanvasTouchStart(e) {
+    e.preventDefault();
+    if (!this.state.drawingMode) return;
+    
+    const touch = e.touches[0];
+    const rect = this.canvas.getBoundingClientRect();
+    const scaleX = this.canvas.width / rect.width;
+    const scaleY = this.canvas.height / rect.height;
+    const x = (touch.clientX - rect.left) * scaleX;
+    const y = (touch.clientY - rect.top) * scaleY;
+    
+    this.startDrawing(x, y);
+  }
+
+  handleCanvasTouchMove(e) {
+    e.preventDefault();
+    if (!this.state.drawingMode || !this.state.isDrawing) return;
+    
+    const touch = e.touches[0];
+    const rect = this.canvas.getBoundingClientRect();
+    const scaleX = this.canvas.width / rect.width;
+    const scaleY = this.canvas.height / rect.height;
+    const x = (touch.clientX - rect.left) * scaleX;
+    const y = (touch.clientY - rect.top) * scaleY;
+    
+    this.continueDrawing(x, y);
+  }
+
+  handleCanvasTouchEnd() {
+    if (!this.state.drawingMode) return;
+    this.endDrawing();
+  }
+
+  // Start drawing
+  startDrawing(x, y) {
+    this.state.isDrawing = true;
+    this.state.lastDrawPoint = { x, y };
+    this.state.currentPath = [{
+      x, y,
+      size: this.state.brushSize,
+      color: this.state.brushColor
+    }];
+  }
+
+  // Continue drawing
+  continueDrawing(x, y) {
+    if (!this.state.lastDrawPoint) return;
+    
+    // Add point to current path
+    this.state.currentPath.push({
+      x, y,
+      size: this.state.brushSize,
+      color: this.state.brushColor
+    });
+    
+    // Draw line on canvas
+    this.ctx.globalCompositeOperation = 'source-over';
+    this.ctx.beginPath();
+    this.ctx.moveTo(this.state.lastDrawPoint.x, this.state.lastDrawPoint.y);
+    this.ctx.lineTo(x, y);
+    this.ctx.strokeStyle = this.state.brushColor;
+    this.ctx.lineWidth = this.state.brushSize;
+    this.ctx.lineCap = 'round';
+    this.ctx.lineJoin = 'round';
+    this.ctx.stroke();
+    
+    this.state.lastDrawPoint = { x, y };
+  }
+
+  // End drawing
+  endDrawing() {
+    if (this.state.isDrawing && this.state.currentPath.length > 0) {
+      this.saveState();
+      
+      // Add current path to drawings
+      this.state.drawings.push({
+        id: Date.now(),
+        type: 'drawing',
+        points: [...this.state.currentPath]
+      });
+      
+      this.updateUndoRedoButtons();
+    }
+    
+    this.state.isDrawing = false;
+    this.state.lastDrawPoint = null;
+    this.state.currentPath = [];
   }
 
   // Setup collapsible sections
@@ -1612,7 +1956,8 @@ class MemeGenerator extends HTMLElement {
       textLayers: this.state.textLayers,
       shapes: this.state.shapes,
       uploadedImages: this.state.uploadedImages,
-      speechBubbles: this.state.speechBubbles
+      speechBubbles: this.state.speechBubbles,
+      drawings: this.state.drawings
     }));
 
     if (this.state.undoStack.length > 20) {
@@ -1629,7 +1974,8 @@ class MemeGenerator extends HTMLElement {
         textLayers: this.state.textLayers,
         shapes: this.state.shapes,
         uploadedImages: this.state.uploadedImages,
-        speechBubbles: this.state.speechBubbles
+        speechBubbles: this.state.speechBubbles,
+        drawings: this.state.drawings
       }));
 
       const prevState = JSON.parse(this.state.undoStack.pop());
@@ -1637,6 +1983,7 @@ class MemeGenerator extends HTMLElement {
       this.state.shapes = prevState.shapes;
       this.state.uploadedImages = prevState.uploadedImages;
       this.state.speechBubbles = prevState.speechBubbles || [];
+      this.state.drawings = prevState.drawings || [];
 
       this.renderCanvas();
       this.renderTextLayersUI();
@@ -1654,7 +2001,8 @@ class MemeGenerator extends HTMLElement {
         textLayers: this.state.textLayers,
         shapes: this.state.shapes,
         uploadedImages: this.state.uploadedImages,
-        speechBubbles: this.state.speechBubbles
+        speechBubbles: this.state.speechBubbles,
+        drawings: this.state.drawings
       }));
 
       const redoneState = JSON.parse(this.state.redoStack.pop());
@@ -1662,6 +2010,7 @@ class MemeGenerator extends HTMLElement {
       this.state.shapes = redoneState.shapes;
       this.state.uploadedImages = redoneState.uploadedImages;
       this.state.speechBubbles = redoneState.speechBubbles || [];
+      this.state.drawings = redoneState.drawings || [];
 
       this.renderCanvas();
       this.renderTextLayersUI();
@@ -1784,6 +2133,7 @@ class MemeGenerator extends HTMLElement {
           pendingImages--;
           if (pendingImages === 0) {
             this.drawSpeechBubbles();
+            this.drawDrawings();
             this.drawTextLayers();
             this.ctx.drawImage(this.bufferCanvas, 0, 0);
           }
@@ -1793,6 +2143,7 @@ class MemeGenerator extends HTMLElement {
           pendingImages--;
           if (pendingImages === 0) {
             this.drawSpeechBubbles();
+            this.drawDrawings();
             this.drawTextLayers();
             this.ctx.drawImage(this.bufferCanvas, 0, 0);
           }
@@ -1802,6 +2153,7 @@ class MemeGenerator extends HTMLElement {
     });
     
     this.drawSpeechBubbles();
+    this.drawDrawings();
 
     if (pendingImages === 0) {
       this.drawTextLayers();
@@ -1828,6 +2180,7 @@ class MemeGenerator extends HTMLElement {
           this.bufferCtx.drawImage(img, bubble.x, bubble.y, bubble.width, bubble.height);
           pendingBubbles--;
           if (pendingBubbles === 0) {
+            this.drawDrawings();
             this.drawTextLayers();
             this.ctx.drawImage(this.bufferCanvas, 0, 0);
           }
@@ -1836,11 +2189,38 @@ class MemeGenerator extends HTMLElement {
           console.error(`Failed to load speech bubble: ${bubble.src}`);
           pendingBubbles--;
           if (pendingBubbles === 0) {
+            this.drawDrawings();
             this.drawTextLayers();
             this.ctx.drawImage(this.bufferCanvas, 0, 0);
           }
         };
         img.src = bubble.src;
+      }
+    });
+  }
+
+  // Draw drawings (from drawing tool)
+  drawDrawings() {
+    this.state.drawings.forEach(drawing => {
+      if (drawing.points && drawing.points.length > 1) {
+        this.bufferCtx.beginPath();
+        this.bufferCtx.moveTo(drawing.points[0].x, drawing.points[0].y);
+        
+        for (let i = 1; i < drawing.points.length; i++) {
+          const point = drawing.points[i];
+          const prevPoint = drawing.points[i - 1];
+          
+          // Use the color and size from each point
+          this.bufferCtx.strokeStyle = point.color || prevPoint.color;
+          this.bufferCtx.lineWidth = point.size || prevPoint.size;
+          this.bufferCtx.lineCap = 'round';
+          this.bufferCtx.lineJoin = 'round';
+          
+          this.bufferCtx.lineTo(point.x, point.y);
+          this.bufferCtx.stroke();
+          this.bufferCtx.beginPath();
+          this.bufferCtx.moveTo(point.x, point.y);
+        }
       }
     });
   }
@@ -1863,13 +2243,19 @@ class MemeGenerator extends HTMLElement {
     });
   }
 
-  // Handle canvas mouse events - FIXED for proper dragging
+  // Handle canvas mouse events - ENHANCED for drawing tool
   handleCanvasMouseDown(e) {
     const rect = this.canvas.getBoundingClientRect();
     const scaleX = this.canvas.width / rect.width;
     const scaleY = this.canvas.height / rect.height;
     const x = (e.clientX - rect.left) * scaleX;
     const y = (e.clientY - rect.top) * scaleY;
+
+    // If in drawing mode, start drawing
+    if (this.state.drawingMode) {
+      this.startDrawing(x, y);
+      return;
+    }
 
     // Set canvas cursor style
     this.canvas.style.cursor = 'grab';
@@ -1985,6 +2371,12 @@ class MemeGenerator extends HTMLElement {
     const x = (e.clientX - rect.left) * scaleX;
     const y = (e.clientY - rect.top) * scaleY;
 
+    // If in drawing mode and drawing, continue drawing
+    if (this.state.drawingMode && this.state.isDrawing) {
+      this.continueDrawing(x, y);
+      return;
+    }
+
     if (this.state.isDragging && this.state.selectedElement) {
       // Calculate new position
       const newX = x - this.state.dragOffsetX;
@@ -2031,59 +2423,67 @@ class MemeGenerator extends HTMLElement {
         });
       }
     } else {
-      // Update cursor when hovering over draggable elements
-      let isOverDraggable = false;
-      
-      // Check if hovering over any draggable element
-      [...this.state.textLayers, ...this.state.speechBubbles, ...this.state.uploadedImages, ...this.state.shapes].forEach(element => {
-        if (element.draggable) {
-          let isOver = false;
-          
-          if (element.type === 'text') {
-            const tempCanvas = document.createElement('canvas');
-            const tempCtx = tempCanvas.getContext('2d');
-            tempCtx.font = `${element.fontSize}px ${element.fontFamily}`;
-            const textWidth = tempCtx.measureText(element.text).width;
-            const textHeight = element.fontSize;
+      // Update cursor when hovering over draggable elements (only when not in drawing mode)
+      if (!this.state.drawingMode) {
+        let isOverDraggable = false;
+        
+        // Check if hovering over any draggable element
+        [...this.state.textLayers, ...this.state.speechBubbles, ...this.state.uploadedImages, ...this.state.shapes].forEach(element => {
+          if (element.draggable) {
+            let isOver = false;
             
-            let textLeft = element.x;
-            if (element.align === 'center') textLeft = element.x - textWidth/2;
-            else if (element.align === 'right') textLeft = element.x - textWidth;
+            if (element.type === 'text') {
+              const tempCanvas = document.createElement('canvas');
+              const tempCtx = tempCanvas.getContext('2d');
+              tempCtx.font = `${element.fontSize}px ${element.fontFamily}`;
+              const textWidth = tempCtx.measureText(element.text).width;
+              const textHeight = element.fontSize;
+              
+              let textLeft = element.x;
+              if (element.align === 'center') textLeft = element.x - textWidth/2;
+              else if (element.align === 'right') textLeft = element.x - textWidth;
+              
+              isOver = (x >= textLeft - 10 && x <= textLeft + textWidth + 10 &&
+                       y >= element.y - textHeight/2 - 10 && y <= element.y + textHeight/2 + 10);
+            } else if (element.type === 'speechBubble') {
+              isOver = (x >= element.x && x <= element.x + element.width &&
+                       y >= element.y && y <= element.y + element.height);
+            } else if (element.type === 'image') {
+              isOver = (x >= element.x && x <= element.x + element.width &&
+                       y >= element.y && y <= element.y + element.height);
+            } else if (element.type === 'shape') {
+              if (element.shapeType === 'square') {
+                isOver = (x >= element.x - element.width/2 && x <= element.x + element.width/2 &&
+                         y >= element.y - element.height/2 && y <= element.y + element.height/2);
+              } else if (element.shapeType === 'circle') {
+                const distance = Math.sqrt(Math.pow(x - element.x, 2) + Math.pow(y - element.y, 2));
+                isOver = distance <= element.width/2;
+              }
+            }
             
-            isOver = (x >= textLeft - 10 && x <= textLeft + textWidth + 10 &&
-                     y >= element.y - textHeight/2 - 10 && y <= element.y + textHeight/2 + 10);
-          } else if (element.type === 'speechBubble') {
-            isOver = (x >= element.x && x <= element.x + element.width &&
-                     y >= element.y && y <= element.y + element.height);
-          } else if (element.type === 'image') {
-            isOver = (x >= element.x && x <= element.x + element.width &&
-                     y >= element.y && y <= element.y + element.height);
-          } else if (element.type === 'shape') {
-            if (element.shapeType === 'square') {
-              isOver = (x >= element.x - element.width/2 && x <= element.x + element.width/2 &&
-                       y >= element.y - element.height/2 && y <= element.y + element.height/2);
-            } else if (element.shapeType === 'circle') {
-              const distance = Math.sqrt(Math.pow(x - element.x, 2) + Math.pow(y - element.y, 2));
-              isOver = distance <= element.width/2;
+            if (isOver) {
+              isOverDraggable = true;
             }
           }
-          
-          if (isOver) {
-            isOverDraggable = true;
-          }
-        }
-      });
-      
-      this.canvas.style.cursor = isOverDraggable ? 'grab' : 'default';
+        });
+        
+        this.canvas.style.cursor = isOverDraggable ? 'grab' : (this.state.drawingMode ? 'crosshair' : 'default');
+      }
     }
   }
 
   handleCanvasMouseUp() {
+    // If in drawing mode, end drawing
+    if (this.state.drawingMode && this.state.isDrawing) {
+      this.endDrawing();
+      return;
+    }
+
     if (this.state.isDragging) {
       this.saveState();
       this.state.isDragging = false;
       this.state.selectedElement = null;
-      this.canvas.style.cursor = 'default';
+      this.canvas.style.cursor = this.state.drawingMode ? 'crosshair' : 'default';
       this.updateUndoRedoButtons();
     }
   }
@@ -2094,7 +2494,7 @@ class MemeGenerator extends HTMLElement {
     this.redoBtn.disabled = this.state.redoStack.length === 0;
   }
 
-  // FIXED Download the meme as an image - No background, only content
+  // Download the meme as an image - Enhanced to include drawings
   downloadMeme(format = 'png') {
     if (this.isDownloading) return;
     this.isDownloading = true;
@@ -2237,6 +2637,20 @@ class MemeGenerator extends HTMLElement {
           hasContent = true;
         });
 
+        // Check drawings
+        this.state.drawings.forEach(drawing => {
+          if (drawing.points && drawing.points.length > 0) {
+            drawing.points.forEach(point => {
+              const brushRadius = (point.size || 5) / 2;
+              minX = Math.min(minX, point.x - brushRadius);
+              minY = Math.min(minY, point.y - brushRadius);
+              maxX = Math.max(maxX, point.x + brushRadius);
+              maxY = Math.max(maxY, point.y + brushRadius);
+              hasContent = true;
+            });
+          }
+        });
+
         // If no content, return default canvas size
         if (!hasContent) {
           return {
@@ -2365,6 +2779,33 @@ class MemeGenerator extends HTMLElement {
           }
         });
 
+        // Draw drawings
+        this.state.drawings.forEach(drawing => {
+          if (drawing.points && drawing.points.length > 1) {
+            downloadCtx.beginPath();
+            downloadCtx.moveTo(
+              transformX(drawing.points[0].x),
+              transformY(drawing.points[0].y)
+            );
+            
+            for (let i = 1; i < drawing.points.length; i++) {
+              const point = drawing.points[i];
+              const prevPoint = drawing.points[i - 1];
+              
+              // Use the color and size from each point
+              downloadCtx.strokeStyle = point.color || prevPoint.color;
+              downloadCtx.lineWidth = transformSize(point.size || prevPoint.size, 'x');
+              downloadCtx.lineCap = 'round';
+              downloadCtx.lineJoin = 'round';
+              
+              downloadCtx.lineTo(transformX(point.x), transformY(point.y));
+              downloadCtx.stroke();
+              downloadCtx.beginPath();
+              downloadCtx.moveTo(transformX(point.x), transformY(point.y));
+            }
+          }
+        });
+
         // Draw text layers
         this.state.textLayers.forEach(layer => {
           const fontSize = transformSize(layer.fontSize, 'y');
@@ -2451,7 +2892,14 @@ class MemeGenerator extends HTMLElement {
       this.state.shapes = [];
       this.state.uploadedImages = [];
       this.state.speechBubbles = [];
+      this.state.drawings = [];
       this.state.selectedTemplate = null;
+      this.state.drawingMode = false;
+
+      // Reset drawing mode toggle
+      this.drawingModeToggle.textContent = 'Enable Drawing Mode';
+      this.drawingModeToggle.classList.remove('active');
+      this.canvas.classList.remove('drawing-mode');
 
       this.renderTextLayersUI();
       this.renderShapeLayersUI();
@@ -2468,10 +2916,7 @@ class MemeGenerator extends HTMLElement {
 
   // Connected callback
   connectedCallback() {
-    if (this.state.textLayers.length === 0) {
-      this.addTextLayer();
-    }
-
+    // Do not add default text layer - let user choose
     this.preloadFonts();
   }
 
