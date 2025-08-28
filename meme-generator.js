@@ -26,8 +26,15 @@ class MemeGenerator extends HTMLElement {
         images: false,
         shapes: true,
         speech: false,
-        drawing: false
+        drawing: false,
+        canvas: true
       },
+      // Canvas padding settings
+      canvasPadding: {
+        top: 0,
+        bottom: 0
+      },
+      originalCanvasHeight: 600,
       // Drawing tool state
       isDrawing: false,
       drawingMode: false,
@@ -779,6 +786,37 @@ class MemeGenerator extends HTMLElement {
         <div class="editor-container">
           <!-- Left Sidebar -->
           <div class="sidebar">
+            <!-- Canvas Settings Section -->
+            <div class="control-group">
+              <div class="control-group-header collapsed" data-section="canvas">
+                <h3>📐 Canvas Settings</h3>
+                <span class="toggle-icon">▼</span>
+              </div>
+              <div class="control-group-content collapsed" data-content="canvas">
+                <label>Add empty space for text/images:</label>
+                
+                <div class="compact-row">
+                  <div>
+                    <label>Top Padding: <span class="value-display" id="top-padding-display">0px</span></label>
+                    <input type="range" id="top-padding-input" min="0" max="300" value="0">
+                  </div>
+                  <div>
+                    <label>Bottom Padding: <span class="value-display" id="bottom-padding-display">0px</span></label>
+                    <input type="range" id="bottom-padding-input" min="0" max="300" value="0">
+                  </div>
+                </div>
+                
+                <div class="btn-group">
+                  <button id="reset-canvas-size-btn" class="warning">Reset Size</button>
+                  <button id="fit-content-btn">Auto Fit</button>
+                </div>
+                
+                <div style="font-size: 11px; color: #666; margin-top: 8px;">
+                  Current size: <span id="canvas-size-display">600×600</span>
+                </div>
+              </div>
+            </div>
+
             <!-- Text Layers Section -->
             <div class="control-group">
               <div class="control-group-header collapsed" data-section="text">
@@ -928,6 +966,15 @@ class MemeGenerator extends HTMLElement {
     this.brushColorPreview = this.shadowRoot.getElementById('brush-color-preview');
     this.clearDrawingBtn = this.shadowRoot.getElementById('clear-drawing-btn');
 
+    // Canvas padding elements
+    this.topPaddingInput = this.shadowRoot.getElementById('top-padding-input');
+    this.bottomPaddingInput = this.shadowRoot.getElementById('bottom-padding-input');
+    this.topPaddingDisplay = this.shadowRoot.getElementById('top-padding-display');
+    this.bottomPaddingDisplay = this.shadowRoot.getElementById('bottom-padding-display');
+    this.canvasSizeDisplay = this.shadowRoot.getElementById('canvas-size-display');
+    this.resetCanvasSizeBtn = this.shadowRoot.getElementById('reset-canvas-size-btn');
+    this.fitContentBtn = this.shadowRoot.getElementById('fit-content-btn');
+
     // Setup collapsible sections
     this.setupCollapsibleSections();
 
@@ -950,6 +997,9 @@ class MemeGenerator extends HTMLElement {
 
     // Drawing tool event listeners
     this.setupDrawingEventListeners();
+
+    // Canvas padding event listeners
+    this.setupCanvasPaddingEventListeners();
 
     // Canvas events
     this.canvas.addEventListener('mousedown', (e) => this.handleCanvasMouseDown(e));
@@ -1000,8 +1050,172 @@ class MemeGenerator extends HTMLElement {
     });
   }
 
-  // Toggle drawing mode
-  toggleDrawingMode() {
+  // Setup canvas padding event listeners
+  setupCanvasPaddingEventListeners() {
+    // Top padding
+    this.topPaddingInput.addEventListener('input', (e) => {
+      this.state.canvasPadding.top = parseInt(e.target.value);
+      this.topPaddingDisplay.textContent = `${this.state.canvasPadding.top}px`;
+      this.updateCanvasSize();
+    });
+
+    // Bottom padding
+    this.bottomPaddingInput.addEventListener('input', (e) => {
+      this.state.canvasPadding.bottom = parseInt(e.target.value);
+      this.bottomPaddingDisplay.textContent = `${this.state.canvasPadding.bottom}px`;
+      this.updateCanvasSize();
+    });
+
+    // Reset canvas size
+    this.resetCanvasSizeBtn.addEventListener('click', () => {
+      this.resetCanvasSize();
+    });
+
+    // Auto fit content
+    this.fitContentBtn.addEventListener('click', () => {
+      this.autoFitContent();
+    });
+  }
+
+  // Update canvas size based on padding
+  updateCanvasSize() {
+    const newHeight = this.state.originalCanvasHeight + this.state.canvasPadding.top + this.state.canvasPadding.bottom;
+    
+    this.canvas.height = newHeight;
+    this.bufferCanvas.height = newHeight;
+    this.state.canvasHeight = newHeight;
+    
+    // Update canvas size display
+    this.canvasSizeDisplay.textContent = `${this.canvas.width}×${newHeight}`;
+    
+    // Adjust existing elements positions for top padding
+    if (this.state.canvasPadding.top > 0) {
+      // Move all elements down by the top padding amount
+      this.state.textLayers.forEach(layer => {
+        if (!layer.paddingAdjusted) {
+          layer.y += this.state.canvasPadding.top;
+          layer.paddingAdjusted = true;
+        }
+      });
+      
+      this.state.shapes.forEach(shape => {
+        if (!shape.paddingAdjusted) {
+          shape.y += this.state.canvasPadding.top;
+          shape.paddingAdjusted = true;
+        }
+      });
+      
+      this.state.uploadedImages.forEach(image => {
+        if (!image.paddingAdjusted) {
+          image.y += this.state.canvasPadding.top;
+          image.paddingAdjusted = true;
+        }
+      });
+      
+      this.state.speechBubbles.forEach(bubble => {
+        if (!bubble.paddingAdjusted) {
+          bubble.y += this.state.canvasPadding.top;
+          bubble.paddingAdjusted = true;
+        }
+      });
+      
+      this.state.drawings.forEach(drawing => {
+        if (!drawing.paddingAdjusted) {
+          drawing.points.forEach(point => {
+            point.y += this.state.canvasPadding.top;
+          });
+          drawing.paddingAdjusted = true;
+        }
+      });
+    }
+    
+    this.renderCanvas();
+  }
+
+  // Reset canvas to original size
+  resetCanvasSize() {
+    // Reset padding values
+    this.state.canvasPadding.top = 0;
+    this.state.canvasPadding.bottom = 0;
+    
+    // Reset input controls
+    this.topPaddingInput.value = 0;
+    this.bottomPaddingInput.value = 0;
+    this.topPaddingDisplay.textContent = '0px';
+    this.bottomPaddingDisplay.textContent = '0px';
+    
+    // Reset canvas dimensions
+    this.canvas.height = this.state.originalCanvasHeight;
+    this.bufferCanvas.height = this.state.originalCanvasHeight;
+    this.state.canvasHeight = this.state.originalCanvasHeight;
+    
+    // Reset padding adjustment flags
+    [...this.state.textLayers, ...this.state.shapes, ...this.state.uploadedImages, 
+     ...this.state.speechBubbles, ...this.state.drawings].forEach(element => {
+      element.paddingAdjusted = false;
+    });
+    
+    this.canvasSizeDisplay.textContent = `${this.canvas.width}×${this.state.originalCanvasHeight}`;
+    this.renderCanvas();
+  }
+
+  // Auto fit content by adding appropriate padding
+  autoFitContent() {
+    let minY = Infinity;
+    let maxY = -Infinity;
+    let hasContent = false;
+
+    // Find content bounds
+    this.state.textLayers.forEach(layer => {
+      const textHeight = layer.fontSize;
+      minY = Math.min(minY, layer.y - textHeight / 2);
+      maxY = Math.max(maxY, layer.y + textHeight / 2);
+      hasContent = true;
+    });
+
+    [...this.state.shapes, ...this.state.uploadedImages, ...this.state.speechBubbles].forEach(element => {
+      if (element.type === 'shape') {
+        minY = Math.min(minY, element.y - (element.shapeType === 'square' ? element.height : element.width) / 2);
+        maxY = Math.max(maxY, element.y + (element.shapeType === 'square' ? element.height : element.width) / 2);
+      } else {
+        minY = Math.min(minY, element.y);
+        maxY = Math.max(maxY, element.y + element.height);
+      }
+      hasContent = true;
+    });
+
+    this.state.drawings.forEach(drawing => {
+      if (drawing.points && drawing.points.length > 0) {
+        drawing.points.forEach(point => {
+          minY = Math.min(minY, point.y);
+          maxY = Math.max(maxY, point.y);
+          hasContent = true;
+        });
+      }
+    });
+
+    if (!hasContent) {
+      alert('No content found to fit.');
+      return;
+    }
+
+    // Calculate needed padding with some buffer
+    const buffer = 50;
+    const topPadding = Math.max(0, buffer - minY);
+    const bottomPadding = Math.max(0, maxY + buffer - this.state.originalCanvasHeight);
+
+    // Apply padding
+    this.state.canvasPadding.top = Math.min(300, Math.round(topPadding));
+    this.state.canvasPadding.bottom = Math.min(300, Math.round(bottomPadding));
+    
+    // Update controls
+    this.topPaddingInput.value = this.state.canvasPadding.top;
+    this.bottomPaddingInput.value = this.state.canvasPadding.bottom;
+    this.topPaddingDisplay.textContent = `${this.state.canvasPadding.top}px`;
+    this.bottomPaddingDisplay.textContent = `${this.state.canvasPadding.bottom}px`;
+    
+    this.updateCanvasSize();
+  }
     this.state.drawingMode = !this.state.drawingMode;
     
     if (this.state.drawingMode) {
@@ -1950,14 +2164,16 @@ class MemeGenerator extends HTMLElement {
     });
   }
 
-  // Save state for undo
+  // Save state for undo - Enhanced to include canvas padding
   saveState() {
     this.state.undoStack.push(JSON.stringify({
       textLayers: this.state.textLayers,
       shapes: this.state.shapes,
       uploadedImages: this.state.uploadedImages,
       speechBubbles: this.state.speechBubbles,
-      drawings: this.state.drawings
+      drawings: this.state.drawings,
+      canvasPadding: this.state.canvasPadding,
+      canvasHeight: this.state.canvasHeight
     }));
 
     if (this.state.undoStack.length > 20) {
@@ -1967,7 +2183,7 @@ class MemeGenerator extends HTMLElement {
     this.state.redoStack = [];
   }
 
-  // Undo last change
+  // Undo last change - Enhanced to handle canvas padding
   undo() {
     if (this.state.undoStack.length > 0) {
       this.state.redoStack.push(JSON.stringify({
@@ -1975,7 +2191,9 @@ class MemeGenerator extends HTMLElement {
         shapes: this.state.shapes,
         uploadedImages: this.state.uploadedImages,
         speechBubbles: this.state.speechBubbles,
-        drawings: this.state.drawings
+        drawings: this.state.drawings,
+        canvasPadding: this.state.canvasPadding,
+        canvasHeight: this.state.canvasHeight
       }));
 
       const prevState = JSON.parse(this.state.undoStack.pop());
@@ -1984,6 +2202,16 @@ class MemeGenerator extends HTMLElement {
       this.state.uploadedImages = prevState.uploadedImages;
       this.state.speechBubbles = prevState.speechBubbles || [];
       this.state.drawings = prevState.drawings || [];
+      
+      // Restore canvas padding if available
+      if (prevState.canvasPadding) {
+        this.state.canvasPadding = prevState.canvasPadding;
+        this.updateCanvasPaddingControls();
+        this.updateCanvasSize();
+      }
+      if (prevState.canvasHeight) {
+        this.state.canvasHeight = prevState.canvasHeight;
+      }
 
       this.renderCanvas();
       this.renderTextLayersUI();
@@ -1994,7 +2222,7 @@ class MemeGenerator extends HTMLElement {
     }
   }
 
-  // Redo last undone change
+  // Redo last undone change - Enhanced to handle canvas padding
   redo() {
     if (this.state.redoStack.length > 0) {
       this.state.undoStack.push(JSON.stringify({
@@ -2002,7 +2230,9 @@ class MemeGenerator extends HTMLElement {
         shapes: this.state.shapes,
         uploadedImages: this.state.uploadedImages,
         speechBubbles: this.state.speechBubbles,
-        drawings: this.state.drawings
+        drawings: this.state.drawings,
+        canvasPadding: this.state.canvasPadding,
+        canvasHeight: this.state.canvasHeight
       }));
 
       const redoneState = JSON.parse(this.state.redoStack.pop());
@@ -2011,6 +2241,16 @@ class MemeGenerator extends HTMLElement {
       this.state.uploadedImages = redoneState.uploadedImages;
       this.state.speechBubbles = redoneState.speechBubbles || [];
       this.state.drawings = redoneState.drawings || [];
+      
+      // Restore canvas padding if available
+      if (redoneState.canvasPadding) {
+        this.state.canvasPadding = redoneState.canvasPadding;
+        this.updateCanvasPaddingControls();
+        this.updateCanvasSize();
+      }
+      if (redoneState.canvasHeight) {
+        this.state.canvasHeight = redoneState.canvasHeight;
+      }
 
       this.renderCanvas();
       this.renderTextLayersUI();
@@ -2019,6 +2259,15 @@ class MemeGenerator extends HTMLElement {
       this.renderSpeechBubblesUI();
       this.updateUndoRedoButtons();
     }
+  }
+
+  // Update canvas padding controls UI
+  updateCanvasPaddingControls() {
+    this.topPaddingInput.value = this.state.canvasPadding.top;
+    this.bottomPaddingInput.value = this.state.canvasPadding.bottom;
+    this.topPaddingDisplay.textContent = `${this.state.canvasPadding.top}px`;
+    this.bottomPaddingDisplay.textContent = `${this.state.canvasPadding.bottom}px`;
+    this.canvasSizeDisplay.textContent = `${this.canvas.width}×${this.state.canvasHeight}`;
   }
 
   // Check if canvas is tainted
@@ -2031,10 +2280,14 @@ class MemeGenerator extends HTMLElement {
     }
   }
 
-  // Render canvas with aspect ratio preserved
+  // Render canvas with aspect ratio preserved and padding support
   renderCanvas() {
     this.bufferCtx.clearRect(0, 0, this.bufferCanvas.width, this.bufferCanvas.height);
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+    // Fill with white background including padding areas
+    this.bufferCtx.fillStyle = '#FFFFFF';
+    this.bufferCtx.fillRect(0, 0, this.bufferCanvas.width, this.bufferCanvas.height);
 
     if (this.state.selectedTemplate && this.state.selectedTemplate !== 'custom') {
       const template = this.state.templates.find(t => t.id === this.state.selectedTemplate);
@@ -2042,25 +2295,26 @@ class MemeGenerator extends HTMLElement {
         if (this.state.imageCache[template.url]) {
           const img = this.state.imageCache[template.url];
           
-          const canvasAspect = this.bufferCanvas.width / this.bufferCanvas.height;
+          const templateWidth = this.bufferCanvas.width;
+          const templateHeight = this.state.originalCanvasHeight;
+          
+          const canvasAspect = templateWidth / templateHeight;
           const imageAspect = img.width / img.height;
           
           let drawWidth, drawHeight, drawX, drawY;
           
           if (imageAspect > canvasAspect) {
-            drawWidth = this.bufferCanvas.width;
-            drawHeight = this.bufferCanvas.width / imageAspect;
+            drawWidth = templateWidth;
+            drawHeight = templateWidth / imageAspect;
             drawX = 0;
-            drawY = (this.bufferCanvas.height - drawHeight) / 2;
+            drawY = this.state.canvasPadding.top + (templateHeight - drawHeight) / 2;
           } else {
-            drawHeight = this.bufferCanvas.height;
-            drawWidth = this.bufferCanvas.height * imageAspect;
-            drawY = 0;
-            drawX = (this.bufferCanvas.width - drawWidth) / 2;
+            drawHeight = templateHeight;
+            drawWidth = templateHeight * imageAspect;
+            drawY = this.state.canvasPadding.top;
+            drawX = (templateWidth - drawWidth) / 2;
           }
           
-          this.bufferCtx.fillStyle = '#FFFFFF';
-          this.bufferCtx.fillRect(0, 0, this.bufferCanvas.width, this.bufferCanvas.height);
           this.bufferCtx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
           
           this.drawCanvasLayers();
@@ -2074,8 +2328,6 @@ class MemeGenerator extends HTMLElement {
           };
           img.onerror = () => {
             console.error('Failed to load template image');
-            this.bufferCtx.fillStyle = '#FFFFFF';
-            this.bufferCtx.fillRect(0, 0, this.bufferCanvas.width, this.bufferCanvas.height);
             this.drawCanvasLayers();
             this.ctx.drawImage(this.bufferCanvas, 0, 0);
           };
@@ -2085,8 +2337,6 @@ class MemeGenerator extends HTMLElement {
       }
     }
 
-    this.bufferCtx.fillStyle = '#FFFFFF';
-    this.bufferCtx.fillRect(0, 0, this.bufferCanvas.width, this.bufferCanvas.height);
     this.drawCanvasLayers();
     this.ctx.drawImage(this.bufferCanvas, 0, 0);
   }
