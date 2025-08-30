@@ -953,6 +953,7 @@ class GifMemeGenerator extends HTMLElement {
     this.nextFrameBtn = this.shadowRoot.getElementById('next-frame-btn');
     this.addTextBtn = this.shadowRoot.getElementById('add-text-btn');
     this.imageUpload = this.shadowRoot.getElementById('image-upload');
+    this.gifUpload = this.shadowRoot.getElementById('gif-upload');
     this.exportBtn = this.shadowRoot.getElementById('export-gif-btn');
     
     // Containers
@@ -969,6 +970,9 @@ class GifMemeGenerator extends HTMLElement {
     this.updateTimeline();
     this.updateDisplays();
     this.renderFrame();
+    this.renderTextLayersUI();
+    this.renderImageLayersUI();
+    this.renderGifLayersUI();
   }
 
   setupControlEventListeners() {
@@ -1014,9 +1018,6 @@ class GifMemeGenerator extends HTMLElement {
     // Content controls
     this.addTextBtn.addEventListener('click', () => this.addTextLayer());
     this.imageUpload.addEventListener('change', (e) => this.handleImageUpload(e));
-    
-    // New GIF upload handler
-    this.gifUpload = this.shadowRoot.getElementById('gif-upload');
     this.gifUpload.addEventListener('change', (e) => this.handleGifUpload(e));
 
     // Export
@@ -1216,6 +1217,50 @@ class GifMemeGenerator extends HTMLElement {
     this.renderFrame();
   }
 
+  handleImageUpload(event) {
+    const files = Array.from(event.target.files);
+    
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          // Calculate size to fit canvas
+          const maxSize = Math.min(this.state.canvasWidth, this.state.canvasHeight) * 0.4;
+          const scale = Math.min(maxSize / img.width, maxSize / img.height);
+          
+          const newImage = {
+            id: Date.now() + Math.random(),
+            type: 'image',
+            src: e.target.result,
+            x: this.state.canvasWidth / 2 - (img.width * scale) / 2,
+            y: this.state.canvasHeight / 2 - (img.height * scale) / 2,
+            width: img.width * scale,
+            height: img.height * scale,
+            originalWidth: img.width,
+            originalHeight: img.height,
+            animation: 'none',
+            animationDuration: 1,
+            startFrame: 0,
+            endFrame: this.state.totalFrames - 1,
+            opacity: 1,
+            rotation: 0,
+            draggable: true
+          };
+          
+          this.state.imageCache[e.target.result] = img;
+          this.state.imageLayers.push(newImage);
+          this.renderImageLayersUI();
+          this.renderFrame();
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+    
+    event.target.value = '';
+  }
+
   handleGifUpload(event) {
     const files = Array.from(event.target.files);
     
@@ -1269,21 +1314,15 @@ class GifMemeGenerator extends HTMLElement {
   async parseGifFrames(dataUrl) {
     return new Promise((resolve, reject) => {
       try {
-        // Create a temporary image to get GIF data
         const img = new Image();
         img.onload = () => {
-          // For now, we'll simulate GIF frame extraction
-          // In a real implementation, you'd use a GIF parsing library like gif-frames or similar
           const frames = [];
-          
-          // Create canvas to capture frames
           const tempCanvas = document.createElement('canvas');
           const tempCtx = tempCanvas.getContext('2d');
           tempCanvas.width = img.width;
           tempCanvas.height = img.height;
           
           // For demonstration, we'll create multiple frames from the single image
-          // In a real implementation, this would extract actual GIF frames
           for (let i = 0; i < 10; i++) {
             tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
             tempCtx.drawImage(img, 0, 0);
@@ -1297,7 +1336,6 @@ class GifMemeGenerator extends HTMLElement {
             });
           }
           
-          // Store the original image for simpler rendering
           this.state.imageCache[dataUrl] = img;
           resolve(frames);
         };
@@ -1309,171 +1347,6 @@ class GifMemeGenerator extends HTMLElement {
         reject(error);
       }
     });
-  }
-
-  renderGifLayersUI() {
-    if (this.state.gifLayers.length === 0) {
-      this.gifLayersContainer.innerHTML = '<p style="color: #666; font-size: 12px; text-align: center; margin: 20px 0;">No GIFs imported yet. Upload some animated GIFs to get started!</p>';
-      return;
-    }
-    
-    this.gifLayersContainer.innerHTML = '';
-    
-    this.state.gifLayers.forEach((layer, index) => {
-      const layerEl = document.createElement('div');
-      layerEl.className = 'layer-item';
-      layerEl.innerHTML = `
-        <div class="layer-header">
-          <h5 class="layer-title">🎬 ${layer.name}</h5>
-          <div class="layer-actions">
-            <button class="icon-btn secondary" onclick="this.getRootNode().host.moveGifLayer(${index}, -1)" ${index === 0 ? 'disabled' : ''}>↑</button>
-            <button class="icon-btn secondary" onclick="this.getRootNode().host.moveGifLayer(${index}, 1)" ${index === this.state.gifLayers.length - 1 ? 'disabled' : ''}>↓</button>
-            <button class="icon-btn danger" onclick="this.getRootNode().host.removeGifLayer(${index})">×</button>
-          </div>
-        </div>
-        
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-          <div class="control-group">
-            <label>Width</label>
-            <input type="range" min="20" max="600" value="${layer.width}" 
-                   oninput="this.getRootNode().host.updateGifLayer(${index}, 'width', parseInt(this.value))">
-            <small>${Math.round(layer.width)}px</small>
-          </div>
-          <div class="control-group">
-            <label>Height</label>
-            <input type="range" min="20" max="600" value="${layer.height}" 
-                   oninput="this.getRootNode().host.updateGifLayer(${index}, 'height', parseInt(this.value))">
-            <small>${Math.round(layer.height)}px</small>
-          </div>
-        </div>
-        
-        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
-          <div class="control-group">
-            <label>Opacity</label>
-            <input type="range" min="0" max="1" step="0.1" value="${layer.opacity}" 
-                   oninput="this.getRootNode().host.updateGifLayer(${index}, 'opacity', parseFloat(this.value))">
-            <small>${Math.round(layer.opacity * 100)}%</small>
-          </div>
-          <div class="control-group">
-            <label>Rotation</label>
-            <input type="range" min="-180" max="180" value="${layer.rotation}" 
-                   oninput="this.getRootNode().host.updateGifLayer(${index}, 'rotation', parseInt(this.value))">
-            <small>${layer.rotation}°</small>
-          </div>
-          <div class="control-group">
-            <label>Speed</label>
-            <input type="range" min="0.1" max="3" step="0.1" value="${layer.playSpeed}" 
-                   oninput="this.getRootNode().host.updateGifLayer(${index}, 'playSpeed', parseFloat(this.value))">
-            <small>${layer.playSpeed}x</small>
-          </div>
-        </div>
-        
-        <div class="control-group">
-          <label>
-            <input type="checkbox" ${layer.loop ? 'checked' : ''} 
-                   onchange="this.getRootNode().host.updateGifLayer(${index}, 'loop', this.checked)"
-                   style="width: auto; margin-right: 5px;">
-            Loop GIF Animation
-          </label>
-        </div>
-        
-        <div class="control-group">
-          <label>Additional Animation</label>
-          <select onchange="this.getRootNode().host.updateGifLayer(${index}, 'animation', this.value)">
-            ${this.state.animations.image.map(anim => 
-              `<option value="${anim.id}" ${layer.animation === anim.id ? 'selected' : ''}>${anim.name}</option>`
-            ).join('')}
-          </select>
-        </div>
-        
-        <div class="timing-controls">
-          <div class="control-group" style="flex: 1;">
-            <label>Start Frame</label>
-            <input type="number" min="0" max="${this.state.totalFrames - 1}" value="${layer.startFrame}" 
-                   onchange="this.getRootNode().host.updateGifLayer(${index}, 'startFrame', parseInt(this.value))">
-          </div>
-          <div class="control-group" style="flex: 1;">
-            <label>End Frame</label>
-            <input type="number" min="0" max="${this.state.totalFrames - 1}" value="${layer.endFrame}" 
-                   onchange="this.getRootNode().host.updateGifLayer(${index}, 'endFrame', parseInt(this.value))">
-          </div>
-        </div>
-        
-        <div style="margin-top: 10px; padding: 8px; background: #e3f2fd; border-radius: 4px; font-size: 11px; color: #1976d2;">
-          ℹ️ This GIF has ${layer.frames.length} frames and will animate within your timeline
-        </div>
-      `;
-      
-      this.gifLayersContainer.appendChild(layerEl);
-    });
-  }
-
-  updateGifLayer(index, property, value) {
-    if (this.state.gifLayers[index]) {
-      this.state.gifLayers[index][property] = value;
-      this.renderFrame();
-    }
-  }
-
-  moveGifLayer(index, direction) {
-    const newIndex = index + direction;
-    
-    if (newIndex >= 0 && newIndex < this.state.gifLayers.length) {
-      [this.state.gifLayers[index], this.state.gifLayers[newIndex]] = 
-        [this.state.gifLayers[newIndex], this.state.gifLayers[index]];
-      this.renderGifLayersUI();
-      this.renderFrame();
-    }
-  }
-
-  removeGifLayer(index) {
-    if (confirm('Remove this GIF layer?')) {
-      this.state.gifLayers.splice(index, 1);
-      this.renderGifLayersUI();
-      this.renderFrame();
-    }
-  }
-    const files = Array.from(event.target.files);
-    
-    files.forEach(file => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = new Image();
-        img.onload = () => {
-          // Calculate size to fit canvas
-          const maxSize = Math.min(this.state.canvasWidth, this.state.canvasHeight) * 0.4;
-          const scale = Math.min(maxSize / img.width, maxSize / img.height);
-          
-          const newImage = {
-            id: Date.now() + Math.random(),
-            type: 'image',
-            src: e.target.result,
-            x: this.state.canvasWidth / 2 - (img.width * scale) / 2,
-            y: this.state.canvasHeight / 2 - (img.height * scale) / 2,
-            width: img.width * scale,
-            height: img.height * scale,
-            originalWidth: img.width,
-            originalHeight: img.height,
-            animation: 'none',
-            animationDuration: 1,
-            startFrame: 0,
-            endFrame: this.state.totalFrames - 1,
-            opacity: 1,
-            rotation: 0,
-            draggable: true
-          };
-          
-          this.state.imageCache[e.target.result] = img;
-          this.state.imageLayers.push(newImage);
-          this.renderImageLayersUI();
-          this.renderFrame();
-        };
-        img.src = e.target.result;
-      };
-      reader.readAsDataURL(file);
-    });
-    
-    event.target.value = '';
   }
 
   renderTextLayersUI() {
@@ -1644,6 +1517,103 @@ class GifMemeGenerator extends HTMLElement {
     });
   }
 
+  renderGifLayersUI() {
+    if (this.state.gifLayers.length === 0) {
+      this.gifLayersContainer.innerHTML = '<p style="color: #666; font-size: 12px; text-align: center; margin: 20px 0;">No GIFs imported yet. Upload some animated GIFs to get started!</p>';
+      return;
+    }
+    
+    this.gifLayersContainer.innerHTML = '';
+    
+    this.state.gifLayers.forEach((layer, index) => {
+      const layerEl = document.createElement('div');
+      layerEl.className = 'layer-item';
+      layerEl.innerHTML = `
+        <div class="layer-header">
+          <h5 class="layer-title">🎬 ${layer.name}</h5>
+          <div class="layer-actions">
+            <button class="icon-btn secondary" onclick="this.getRootNode().host.moveGifLayer(${index}, -1)" ${index === 0 ? 'disabled' : ''}>↑</button>
+            <button class="icon-btn secondary" onclick="this.getRootNode().host.moveGifLayer(${index}, 1)" ${index === this.state.gifLayers.length - 1 ? 'disabled' : ''}>↓</button>
+            <button class="icon-btn danger" onclick="this.getRootNode().host.removeGifLayer(${index})">×</button>
+          </div>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div class="control-group">
+            <label>Width</label>
+            <input type="range" min="20" max="600" value="${layer.width}" 
+                   oninput="this.getRootNode().host.updateGifLayer(${index}, 'width', parseInt(this.value))">
+            <small>${Math.round(layer.width)}px</small>
+          </div>
+          <div class="control-group">
+            <label>Height</label>
+            <input type="range" min="20" max="600" value="${layer.height}" 
+                   oninput="this.getRootNode().host.updateGifLayer(${index}, 'height', parseInt(this.value))">
+            <small>${Math.round(layer.height)}px</small>
+          </div>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+          <div class="control-group">
+            <label>Opacity</label>
+            <input type="range" min="0" max="1" step="0.1" value="${layer.opacity}" 
+                   oninput="this.getRootNode().host.updateGifLayer(${index}, 'opacity', parseFloat(this.value))">
+            <small>${Math.round(layer.opacity * 100)}%</small>
+          </div>
+          <div class="control-group">
+            <label>Rotation</label>
+            <input type="range" min="-180" max="180" value="${layer.rotation}" 
+                   oninput="this.getRootNode().host.updateGifLayer(${index}, 'rotation', parseInt(this.value))">
+            <small>${layer.rotation}°</small>
+          </div>
+          <div class="control-group">
+            <label>Speed</label>
+            <input type="range" min="0.1" max="3" step="0.1" value="${layer.playSpeed}" 
+                   oninput="this.getRootNode().host.updateGifLayer(${index}, 'playSpeed', parseFloat(this.value))">
+            <small>${layer.playSpeed}x</small>
+          </div>
+        </div>
+        
+        <div class="control-group">
+          <label>
+            <input type="checkbox" ${layer.loop ? 'checked' : ''} 
+                   onchange="this.getRootNode().host.updateGifLayer(${index}, 'loop', this.checked)"
+                   style="width: auto; margin-right: 5px;">
+            Loop GIF Animation
+          </label>
+        </div>
+        
+        <div class="control-group">
+          <label>Additional Animation</label>
+          <select onchange="this.getRootNode().host.updateGifLayer(${index}, 'animation', this.value)">
+            ${this.state.animations.image.map(anim => 
+              `<option value="${anim.id}" ${layer.animation === anim.id ? 'selected' : ''}>${anim.name}</option>`
+            ).join('')}
+          </select>
+        </div>
+        
+        <div class="timing-controls">
+          <div class="control-group" style="flex: 1;">
+            <label>Start Frame</label>
+            <input type="number" min="0" max="${this.state.totalFrames - 1}" value="${layer.startFrame}" 
+                   onchange="this.getRootNode().host.updateGifLayer(${index}, 'startFrame', parseInt(this.value))">
+          </div>
+          <div class="control-group" style="flex: 1;">
+            <label>End Frame</label>
+            <input type="number" min="0" max="${this.state.totalFrames - 1}" value="${layer.endFrame}" 
+                   onchange="this.getRootNode().host.updateGifLayer(${index}, 'endFrame', parseInt(this.value))">
+          </div>
+        </div>
+        
+        <div style="margin-top: 10px; padding: 8px; background: #e3f2fd; border-radius: 4px; font-size: 11px; color: #1976d2;">
+          ℹ️ This GIF has ${layer.frames.length} frames and will animate within your timeline
+        </div>
+      `;
+      
+      this.gifLayersContainer.appendChild(layerEl);
+    });
+  }
+
   updateTextLayer(index, property, value) {
     if (this.state.textLayers[index]) {
       this.state.textLayers[index][property] = value;
@@ -1654,6 +1624,13 @@ class GifMemeGenerator extends HTMLElement {
   updateImageLayer(index, property, value) {
     if (this.state.imageLayers[index]) {
       this.state.imageLayers[index][property] = value;
+      this.renderFrame();
+    }
+  }
+
+  updateGifLayer(index, property, value) {
+    if (this.state.gifLayers[index]) {
+      this.state.gifLayers[index][property] = value;
       this.renderFrame();
     }
   }
@@ -1673,6 +1650,17 @@ class GifMemeGenerator extends HTMLElement {
     }
   }
 
+  moveGifLayer(index, direction) {
+    const newIndex = index + direction;
+    
+    if (newIndex >= 0 && newIndex < this.state.gifLayers.length) {
+      [this.state.gifLayers[index], this.state.gifLayers[newIndex]] = 
+        [this.state.gifLayers[newIndex], this.state.gifLayers[index]];
+      this.renderGifLayersUI();
+      this.renderFrame();
+    }
+  }
+
   removeLayer(type, index) {
     if (confirm('Remove this layer?')) {
       if (type === 'text') {
@@ -1682,6 +1670,14 @@ class GifMemeGenerator extends HTMLElement {
         this.state.imageLayers.splice(index, 1);
         this.renderImageLayersUI();
       }
+      this.renderFrame();
+    }
+  }
+
+  removeGifLayer(index) {
+    if (confirm('Remove this GIF layer?')) {
+      this.state.gifLayers.splice(index, 1);
+      this.renderGifLayersUI();
       this.renderFrame();
     }
   }
@@ -1717,8 +1713,6 @@ class GifMemeGenerator extends HTMLElement {
           this.ctx.rotate(animatedProps.rotation * Math.PI / 180);
           this.ctx.scale(animatedProps.scaleX, animatedProps.scaleY);
           
-          // For GIF layers, we simulate animation by using the original image
-          // In a real implementation, you'd cycle through the actual GIF frames
           this.ctx.drawImage(
             this.state.imageCache[layer.src],
             -layer.width/2, -layer.height/2,
