@@ -851,14 +851,14 @@ class FakeTextCreator extends HTMLElement {
         messagesArea.innerHTML = '';
 
         if (this.messages.length === 0 || this.messages.every(msg => !msg.text.trim())) {
-            messagesArea.innerHTML = '<div class="empty-messages">No messages yet. Add some messages above!</div>';
+            messagesArea.innerHTML = `<div class="empty-messages ${this.darkMode ? 'dark' : ''}">No messages yet. Add some messages above!</div>`;
             return;
         }
 
         this.messages.forEach((message) => {
             if (message.text.trim()) {
                 const messageDiv = document.createElement('div');
-                messageDiv.className = `message ${message.type} ${this.currentModel}`;
+                messageDiv.className = `message ${message.type} ${this.currentModel} ${this.darkMode ? 'dark' : ''}`;
                 
                 messageDiv.innerHTML = `
                     ${message.text}
