@@ -415,6 +415,11 @@ class FakeTextCreator extends HTMLElement {
                     display: flex;
                     flex-direction: column;
                     gap: 12px;
+                    border-radius: 0 0 25px 25px;
+                }
+
+                .messages-area.android {
+                    border-radius: 0 0 15px 15px;
                 }
 
                 .messages-area.dark { background: #1c1c1e; }
