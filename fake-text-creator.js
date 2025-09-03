@@ -83,24 +83,6 @@ class FakeTextCreator extends HTMLElement {
                     overflow: hidden;
                 }
 
-                .header {
-                    background: linear-gradient(135deg, #1e3c72, #2a5298);
-                    color: white;
-                    padding: 30px;
-                    text-align: center;
-                }
-
-                .header h1 {
-                    font-size: 2.5rem;
-                    margin-bottom: 10px;
-                    font-weight: 700;
-                }
-
-                .header p {
-                    opacity: 0.9;
-                    font-size: 1.1rem;
-                }
-
                 .main-content {
                     display: grid;
                     grid-template-columns: 1fr 420px;
