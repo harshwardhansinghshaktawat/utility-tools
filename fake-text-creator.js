@@ -635,7 +635,9 @@ class FakeTextCreator extends HTMLElement {
 
             <div class="container">
                 <div class="header">
-                    
+                    <h1>📱 Fake Text Creator Pro</h1>
+                    <p>Create ultra-realistic text message screenshots!</p>
+                </div>
                 
                 <div class="main-content">
                     <div class="controls">
