@@ -2,13 +2,41 @@ class FakeTextCreator extends HTMLElement {
     constructor() {
         super();
         this.currentModel = 'iphone';
+        this.currentApp = 'imessage';
+        this.darkMode = false;
         this.showBattery = true;
         this.showSignal = true;
         this.showWifi = true;
+        this.iphoneColor = 'purple';
+        this.senderAvatar = null;
         this.messages = [
-            { text: "Hey! How are you?", type: "received" },
-            { text: "I'm good! Thanks for asking 😊", type: "sent" }
+            { text: "Hey! How are you?", type: "received", time: "14:25" },
+            { text: "I'm good! Thanks for asking 😊", type: "sent", time: "14:30" }
         ];
+        
+        this.iphoneColors = {
+            purple: { name: 'Purple', gradient: 'linear-gradient(60deg, #7371ee 1%, #a1d9d6 100%)' },
+            blue: { name: 'Blue', gradient: 'linear-gradient(60deg, #4facfe 0%, #00f2fe 100%)' },
+            black: { name: 'Space Gray', gradient: 'linear-gradient(60deg, #29323c 0%, #485563 100%)' },
+            white: { name: 'Silver', gradient: 'linear-gradient(60deg, #ffecd2 0%, #fcb69f 100%)' },
+            red: { name: 'Red', gradient: 'linear-gradient(60deg, #ff9a9e 0%, #fecfef 100%)' },
+            green: { name: 'Green', gradient: 'linear-gradient(60deg, #a8edea 0%, #fed6e3 100%)' }
+        };
+        
+        this.messageApps = {
+            iphone: [
+                { value: 'imessage', name: 'Messages (iMessage)', color: '#007AFF' },
+                { value: 'whatsapp', name: 'WhatsApp', color: '#25D366' },
+                { value: 'telegram', name: 'Telegram', color: '#0088cc' },
+                { value: 'signal', name: 'Signal', color: '#2592E9' }
+            ],
+            android: [
+                { value: 'messages', name: 'Google Messages', color: '#1976D2' },
+                { value: 'whatsapp', name: 'WhatsApp', color: '#25D366' },
+                { value: 'telegram', name: 'Telegram', color: '#0088cc' },
+                { value: 'signal', name: 'Signal', color: '#2592E9' }
+            ]
+        };
         
         this.translations = {
             en: { active: 'Active now', typing: 'typing...', online: 'Online' },
@@ -28,8 +56,17 @@ class FakeTextCreator extends HTMLElement {
 
     connectedCallback() {
         this.innerHTML = this.getTemplate();
+        this.loadHtml2Canvas();
         this.setupEventListeners();
         this.updatePreview();
+    }
+
+    loadHtml2Canvas() {
+        if (!window.html2canvas) {
+            const script = document.createElement('script');
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+            document.head.appendChild(script);
+        }
     }
 
     getTemplate() {
@@ -80,7 +117,7 @@ class FakeTextCreator extends HTMLElement {
                     display: grid;
                     grid-template-columns: 1fr 420px;
                     gap: 0;
-                    min-height: 800px;
+                    min-height: 900px;
                 }
 
                 .controls {
@@ -88,7 +125,7 @@ class FakeTextCreator extends HTMLElement {
                     background: #f8fafc;
                     border-right: 1px solid #e2e8f0;
                     overflow-y: auto;
-                    max-height: 800px;
+                    max-height: 900px;
                 }
 
                 .preview {
@@ -96,7 +133,7 @@ class FakeTextCreator extends HTMLElement {
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    background: #f4f6fc;
                     position: relative;
                 }
 
@@ -126,48 +163,142 @@ class FakeTextCreator extends HTMLElement {
                     border-color: #3b82f6;
                 }
 
-                .control-group textarea {
-                    resize: vertical;
-                    min-height: 100px;
+                .avatar-upload {
+                    display: flex;
+                    gap: 15px;
+                    align-items: center;
+                    margin-top: 10px;
                 }
 
-                .phone-container {
-                    position: relative;
-                    width: 320px;
-                    height: 640px;
-                    margin: 0 auto;
-                }
-
-                .phone-frame {
-                    width: 100%;
-                    height: 100%;
-                    background: linear-gradient(145deg, #2c3e50, #34495e);
-                    border-radius: 30px;
-                    padding: 15px 10px 25px 10px;
-                    position: relative;
-                    box-shadow: 0 0 40px rgba(0,0,0,0.4);
-                    border: 2px solid #34495e;
-                }
-
-                .phone-frame.android {
-                    border-radius: 20px;
-                    background: linear-gradient(145deg, #424242, #616161);
-                    border-color: #616161;
-                }
-
-                .screen {
-                    width: 100%;
-                    height: 100%;
-                    background: #000;
-                    border-radius: 25px;
+                .avatar-preview {
+                    width: 50px;
+                    height: 50px;
+                    border-radius: 50%;
+                    background: linear-gradient(135deg, #667eea, #764ba2);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: white;
+                    font-weight: bold;
+                    font-size: 18px;
                     overflow: hidden;
+                }
+
+                .avatar-preview img {
+                    width: 100%;
+                    height: 100%;
+                    object-fit: cover;
+                }
+
+                .file-input {
+                    flex: 1;
+                    cursor: pointer;
+                }
+
+                /* iPhone X Mockup Styles */
+                .iphone-x {
                     position: relative;
+                    margin: 40px auto;
+                    width: 360px;
+                    height: 780px;
+                    background-color: #7371ee;
+                    background-image: linear-gradient(60deg, #7371ee 1%, #a1d9d6 100%);
+                    border-radius: 40px;
+                    box-shadow: 0px 0px 0px 11px #1f1f1f, 0px 0px 0px 13px #191919, 0px 0px 0px 20px #111;
+                }
+
+                .iphone-x:before,
+                .iphone-x:after {
+                    content: '';
+                    position: absolute;
+                    left: 50%;
+                    transform: translateX(-50%);
+                }
+
+                .iphone-x:after {
+                    bottom: 7px;
+                    width: 140px;
+                    height: 4px;
+                    background-color: #f2f2f2;
+                    border-radius: 10px;
+                }
+
+                .iphone-x:before {
+                    top: 0px;
+                    width: 56%;
+                    height: 30px;
+                    background-color: #1f1f1f;
+                    border-radius: 0px 0px 40px 40px;
+                    z-index: 10;
+                }
+
+                .iphone-speaker {
+                    position: absolute;
+                    top: 6px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    height: 8px;
+                    width: 15%;
+                    background-color: #101010;
+                    border-radius: 8px;
+                    box-shadow: inset 0px -3px 3px 0px rgba(255, 255, 255, 0.2);
+                    z-index: 15;
+                }
+
+                .iphone-camera {
+                    position: absolute;
+                    left: 50%;
+                    top: 4px;
+                    transform: translateX(50px);
+                    width: 12px;
+                    height: 12px;
+                    background-color: #101010;
+                    border-radius: 12px;
+                    box-shadow: inset 0px -3px 2px 0px rgba(255, 255, 255, 0.2);
+                    z-index: 15;
+                }
+
+                .iphone-camera:after {
+                    content: '';
+                    position: absolute;
+                    background-color: #2d4d76;
+                    width: 6px;
+                    height: 6px;
+                    top: 3px;
+                    left: 3px;
+                    border-radius: 4px;
+                    box-shadow: inset 0px -2px 2px rgba(0, 0, 0, 0.5);
+                }
+
+                /* Android Mockup Styles */
+                .android-phone {
+                    position: relative;
+                    margin: 40px auto;
+                    width: 328px;
+                    height: 658px;
+                    background: linear-gradient(145deg, #2c2c2c, #404040);
+                    border-radius: 25px;
+                    box-shadow: 0px 0px 0px 8px #1a1a1a, 0px 0px 0px 10px #111, 0px 0px 20px rgba(0,0,0,0.5);
+                }
+
+                .android-frame {
+                    position: absolute;
+                    top: 15px;
+                    left: 15px;
+                    width: calc(100% - 30px);
+                    height: calc(100% - 30px);
+                    background: #000;
+                    border-radius: 15px;
+                    overflow: hidden;
+                }
+
+                /* Screen Content */
+                .phone-screen {
+                    width: 100%;
+                    height: 100%;
                     display: flex;
                     flex-direction: column;
-                }
-
-                .screen.android {
-                    border-radius: 15px;
+                    position: relative;
                 }
 
                 .status-bar {
@@ -176,12 +307,14 @@ class FakeTextCreator extends HTMLElement {
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
-                    padding: 0 20px;
+                    padding: 0 25px;
                     color: white;
                     font-size: 14px;
                     font-weight: 600;
                     flex-shrink: 0;
                     backdrop-filter: blur(20px);
+                    position: relative;
+                    z-index: 15;
                 }
 
                 .status-bar.android {
@@ -189,6 +322,33 @@ class FakeTextCreator extends HTMLElement {
                     height: 28px;
                     padding: 0 15px;
                     font-size: 13px;
+                    backdrop-filter: none;
+                }
+
+                .status-bar.dark {
+                    background: rgba(28, 28, 30, 0.95);
+                    color: white;
+                }
+
+                .status-bar.dark.android {
+                    background: #1f1f1f;
+                    color: white;
+                }
+
+                .status-bar.whatsapp {
+                    background: #075e54;
+                }
+
+                .status-bar.whatsapp.android {
+                    background: #128C7E;
+                }
+
+                .status-bar.telegram {
+                    background: #0088cc;
+                }
+
+                .status-bar.signal {
+                    background: #2592E9;
                 }
 
                 .status-left {
@@ -218,6 +378,48 @@ class FakeTextCreator extends HTMLElement {
                     color: white;
                 }
 
+                .messages-header.dark {
+                    background: linear-gradient(180deg, #2c2c2e 0%, #1c1c1e 100%);
+                    color: white;
+                    border-bottom-color: #38383a;
+                }
+
+                .messages-header.dark.android {
+                    background: linear-gradient(180deg, #212121 0%, #121212 100%);
+                    color: white;
+                    border-bottom-color: #333;
+                }
+
+                .messages-header.whatsapp {
+                    background: linear-gradient(180deg, #128C7E 0%, #075E54 100%);
+                    color: white;
+                }
+
+                .messages-header.whatsapp.dark {
+                    background: linear-gradient(180deg, #0d7269 0%, #054e46 100%);
+                    color: white;
+                }
+
+                .messages-header.telegram {
+                    background: linear-gradient(180deg, #54a9eb 0%, #0088cc 100%);
+                    color: white;
+                }
+
+                .messages-header.telegram.dark {
+                    background: linear-gradient(180deg, #2b5278 0%, #17212b 100%);
+                    color: white;
+                }
+
+                .messages-header.signal {
+                    background: linear-gradient(180deg, #2592E9 0%, #1976D2 100%);
+                    color: white;
+                }
+
+                .messages-header.signal.dark {
+                    background: linear-gradient(180deg, #1976D2 0%, #0d47a1 100%);
+                    color: white;
+                }
+
                 .avatar {
                     width: 40px;
                     height: 40px;
@@ -230,6 +432,13 @@ class FakeTextCreator extends HTMLElement {
                     font-weight: bold;
                     font-size: 16px;
                     flex-shrink: 0;
+                    overflow: hidden;
+                }
+
+                .avatar img {
+                    width: 100%;
+                    height: 100%;
+                    object-fit: cover;
                 }
 
                 .contact-info h3 {
@@ -239,7 +448,11 @@ class FakeTextCreator extends HTMLElement {
                     font-weight: 600;
                 }
 
-                .contact-info.android h3 {
+                .contact-info.android h3,
+                .contact-info.dark h3,
+                .contact-info.whatsapp h3,
+                .contact-info.telegram h3,
+                .contact-info.signal h3 {
                     color: white;
                 }
 
@@ -249,8 +462,15 @@ class FakeTextCreator extends HTMLElement {
                     font-weight: 400;
                 }
 
-                .contact-info.android p {
+                .contact-info.android p,
+                .contact-info.dark p {
                     color: rgba(255,255,255,0.9);
+                }
+
+                .contact-info.whatsapp p,
+                .contact-info.telegram p,
+                .contact-info.signal p {
+                    color: rgba(255,255,255,0.8);
                 }
 
                 .messages-area {
@@ -258,14 +478,45 @@ class FakeTextCreator extends HTMLElement {
                     padding: 20px 15px;
                     overflow-y: auto;
                     background: #ffffff;
-                    background-image: 
-                        radial-gradient(circle at 25% 25%, rgba(255,255,255,0.1) 0%, transparent 50%),
-                        radial-gradient(circle at 75% 75%, rgba(0,0,0,0.02) 0%, transparent 50%);
                     display: flex;
                     flex-direction: column;
                     gap: 12px;
                     min-height: 400px;
                     position: relative;
+                }
+
+                .messages-area.dark {
+                    background: #1c1c1e;
+                }
+
+                .messages-area.dark.android {
+                    background: #121212;
+                }
+
+                .messages-area.whatsapp {
+                    background: #ece5dd;
+                    background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><defs><pattern id="whatsapp-pattern" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="10" cy="10" r="0.5" fill="%23d9d9d9" opacity="0.3"/></pattern></defs><rect width="100" height="100" fill="url(%23whatsapp-pattern)"/></svg>');
+                    background-size: 20px 20px;
+                }
+
+                .messages-area.whatsapp.dark {
+                    background: #0b141a;
+                }
+
+                .messages-area.telegram {
+                    background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+                }
+
+                .messages-area.telegram.dark {
+                    background: #17212b;
+                }
+
+                .messages-area.signal {
+                    background: #f8fafc;
+                }
+
+                .messages-area.signal.dark {
+                    background: #1a1a1a;
                 }
 
                 .messages-area.custom-bg {
@@ -295,6 +546,26 @@ class FakeTextCreator extends HTMLElement {
                     background: linear-gradient(135deg, #4CAF50 0%, #388E3C 100%);
                 }
 
+                .message.sent.whatsapp {
+                    background: linear-gradient(135deg, #dcf8c6 0%, #b6d481 100%);
+                    color: #000;
+                }
+
+                .message.sent.whatsapp.dark {
+                    background: linear-gradient(135deg, #005c4b 0%, #004037 100%);
+                    color: white;
+                }
+
+                .message.sent.telegram {
+                    background: linear-gradient(135deg, #54a9eb 0%, #0088cc 100%);
+                    color: white;
+                }
+
+                .message.sent.signal {
+                    background: linear-gradient(135deg, #2592E9 0%, #1976D2 100%);
+                    color: white;
+                }
+
                 .message.received {
                     align-self: flex-start;
                     background: linear-gradient(135deg, #f0f0f0 0%, #e8e8e8 100%);
@@ -305,6 +576,42 @@ class FakeTextCreator extends HTMLElement {
                 .message.received.android {
                     background: linear-gradient(135deg, #ffffff 0%, #f5f5f5 100%);
                     border: 1px solid #e0e0e0;
+                }
+
+                .message.received.dark {
+                    background: linear-gradient(135deg, #3a3a3c 0%, #2c2c2e 100%);
+                    color: #ffffff;
+                    border: 1px solid #48484a;
+                }
+
+                .message.received.whatsapp {
+                    background: linear-gradient(135deg, #ffffff 0%, #f5f5f5 100%);
+                    color: #000;
+                }
+
+                .message.received.whatsapp.dark {
+                    background: linear-gradient(135deg, #262d31 0%, #1f2428 100%);
+                    color: white;
+                }
+
+                .message.received.telegram {
+                    background: linear-gradient(135deg, #ffffff 0%, #f5f5f5 100%);
+                    color: #000;
+                }
+
+                .message.received.telegram.dark {
+                    background: linear-gradient(135deg, #2b2e33 0%, #212427 100%);
+                    color: white;
+                }
+
+                .message.received.signal {
+                    background: linear-gradient(135deg, #f0f0f0 0%, #e8e8e8 100%);
+                    color: #000;
+                }
+
+                .message.received.signal.dark {
+                    background: linear-gradient(135deg, #3a3a3c 0%, #2c2c2e 100%);
+                    color: white;
                 }
 
                 .message-time {
@@ -338,8 +645,12 @@ class FakeTextCreator extends HTMLElement {
                     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
                 }
 
-                .btn:active {
-                    transform: translateY(0);
+                .btn.export-png {
+                    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                }
+
+                .btn.export-jpg {
+                    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
                 }
 
                 .toggle-group {
@@ -377,19 +688,22 @@ class FakeTextCreator extends HTMLElement {
                     cursor: pointer;
                 }
 
-                .messages-input {
-                    margin-bottom: 20px;
-                }
-
                 .message-item {
                     display: flex;
                     gap: 10px;
                     margin-bottom: 15px;
                     align-items: flex-start;
+                    flex-wrap: wrap;
                 }
 
                 .message-input {
+                    flex: 2;
+                    min-width: 200px;
+                }
+
+                .message-time-input {
                     flex: 1;
+                    min-width: 100px;
                 }
 
                 .message-type-toggle {
@@ -417,14 +731,6 @@ class FakeTextCreator extends HTMLElement {
                     border-color: #e5e5ea;
                 }
 
-                .add-message-btn {
-                    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-                    padding: 10px 20px;
-                    font-size: 13px;
-                    border-radius: 8px;
-                    margin-bottom: 15px;
-                }
-
                 .remove-message {
                     background: #ef4444;
                     color: white;
@@ -445,26 +751,6 @@ class FakeTextCreator extends HTMLElement {
                     transform: scale(1.1);
                 }
 
-                @media (max-width: 768px) {
-                    .main-content {
-                        grid-template-columns: 1fr;
-                        grid-template-rows: auto 1fr;
-                    }
-                    
-                    .phone-container {
-                        width: 280px;
-                        height: 560px;
-                    }
-                    
-                    .header h1 {
-                        font-size: 2rem;
-                    }
-                    
-                    .preview {
-                        padding: 20px;
-                    }
-                }
-
                 .signal-bars {
                     display: flex;
                     gap: 2px;
@@ -476,10 +762,6 @@ class FakeTextCreator extends HTMLElement {
                     background: white;
                     border-radius: 2px;
                     transition: opacity 0.3s ease;
-                }
-
-                .signal-bar.android {
-                    background: white;
                 }
 
                 .battery-icon {
@@ -508,24 +790,16 @@ class FakeTextCreator extends HTMLElement {
                     border-radius: 0 2px 2px 0;
                 }
 
-                .wifi-icon {
-                    font-size: 14px;
-                }
-
                 .export-section {
                     border-top: 1px solid #e5e7eb;
                     padding-top: 20px;
                     margin-top: 20px;
                 }
 
-                .empty-messages {
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    height: 200px;
-                    color: #9ca3af;
-                    font-size: 14px;
-                    text-align: center;
+                .export-buttons {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 10px;
                 }
 
                 .range-display {
@@ -533,12 +807,32 @@ class FakeTextCreator extends HTMLElement {
                     color: #6b7280;
                     margin-top: 4px;
                 }
+
+                @media (max-width: 768px) {
+                    .main-content {
+                        grid-template-columns: 1fr;
+                        grid-template-rows: auto 1fr;
+                    }
+                    
+                    .iphone-x, .android-phone {
+                        width: 300px;
+                        height: 650px;
+                    }
+                    
+                    .header h1 {
+                        font-size: 2rem;
+                    }
+                    
+                    .preview {
+                        padding: 20px;
+                    }
+                }
             </style>
 
             <div class="container">
                 <div class="header">
-                    <h1>📱 Fake Text Creator</h1>
-                    <p>Create realistic text message screenshots for memes, quotes, and more!</p>
+                    <h1>📱 Fake Text Creator Pro</h1>
+                    <p>Create ultra-realistic text message screenshots with customizable phones and message apps!</p>
                 </div>
                 
                 <div class="main-content">
@@ -551,9 +845,39 @@ class FakeTextCreator extends HTMLElement {
                             </div>
                         </div>
 
+                        <div class="control-group" id="iphoneColorGroup">
+                            <label>iPhone Color</label>
+                            <select id="iphoneColor">
+                                <!-- Options populated dynamically -->
+                            </select>
+                        </div>
+
+                        <div class="control-group">
+                            <label>Theme Mode</label>
+                            <div class="toggle-group">
+                                <div class="toggle active" data-theme="light">🌞 Light</div>
+                                <div class="toggle" data-theme="dark">🌙 Dark</div>
+                            </div>
+                        </div>
+
+                        <div class="control-group">
+                            <label>Message App</label>
+                            <select id="messageApp">
+                                <!-- Options populated dynamically -->
+                            </select>
+                        </div>
+
                         <div class="control-group">
                             <label>Contact Name</label>
                             <input type="text" id="contactName" value="John Doe" placeholder="Enter contact name">
+                        </div>
+
+                        <div class="control-group">
+                            <label>Sender Avatar</label>
+                            <div class="avatar-upload">
+                                <div class="avatar-preview" id="avatarPreview">JD</div>
+                                <input type="file" id="avatarUpload" accept="image/*" class="file-input">
+                            </div>
                         </div>
 
                         <div class="control-group">
@@ -615,57 +939,25 @@ class FakeTextCreator extends HTMLElement {
                             </select>
                         </div>
 
-                        <div class="control-group messages-input">
+                        <div class="control-group">
                             <label>Messages</label>
                             <div id="messagesContainer">
-                                <!-- Messages will be populated here -->
+                                <!-- Messages populated dynamically -->
                             </div>
-                            <button class="btn add-message-btn" onclick="this.getRootNode().host.addMessage()">+ Add Message</button>
+                            <button class="btn" onclick="this.getRootNode().host.addMessage()">+ Add Message</button>
                         </div>
 
                         <div class="export-section">
-                            <button class="btn" onclick="this.getRootNode().host.exportImage()">📸 Export as Image</button>
+                            <div class="export-buttons">
+                                <button class="btn export-png" onclick="this.getRootNode().host.exportImage('png')">📸 Export PNG</button>
+                                <button class="btn export-jpg" onclick="this.getRootNode().host.exportImage('jpg')">🖼️ Export JPG</button>
+                            </div>
                         </div>
                     </div>
 
                     <div class="preview">
-                        <div class="phone-container">
-                            <div class="phone-frame" id="phoneFrame">
-                                <div class="screen" id="screen">
-                                    <div class="status-bar" id="statusBar">
-                                        <div class="status-left">
-                                            <span id="timeDisplay">2:30 PM</span>
-                                        </div>
-                                        <div class="status-right">
-                                            <div class="signal-bars" id="signalBars" style="display: flex;">
-                                                <div class="signal-bar" style="height: 4px;"></div>
-                                                <div class="signal-bar" style="height: 6px;"></div>
-                                                <div class="signal-bar" style="height: 8px;"></div>
-                                                <div class="signal-bar" style="height: 10px;"></div>
-                                            </div>
-                                            <div class="wifi-icon" id="wifiIcon" style="display: block;">📶</div>
-                                            <span id="carrierDisplay">Verizon</span>
-                                            <div class="battery-icon" id="batteryIcon" style="display: flex;">
-                                                <div class="battery-fill" style="width: 85%;"></div>
-                                                <div class="battery-tip"></div>
-                                            </div>
-                                            <span id="batteryText">85%</span>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="messages-header" id="messagesHeader">
-                                        <div class="avatar" id="avatar">JD</div>
-                                        <div class="contact-info" id="contactInfo">
-                                            <h3 id="contactNameDisplay">John Doe</h3>
-                                            <p id="statusTextDisplay">Active now</p>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="messages-area" id="messagesArea">
-                                        <!-- Messages will be populated here -->
-                                    </div>
-                                </div>
-                            </div>
+                        <div id="phoneContainer">
+                            <!-- Phone will be rendered here -->
                         </div>
                     </div>
                 </div>
@@ -680,6 +972,18 @@ class FakeTextCreator extends HTMLElement {
                 this.querySelectorAll('[data-model]').forEach(t => t.classList.remove('active'));
                 toggle.classList.add('active');
                 this.currentModel = toggle.dataset.model;
+                this.populateMessageApps();
+                this.updateIphoneColorVisibility();
+                this.updatePreview();
+            });
+        });
+
+        // Theme toggles
+        this.querySelectorAll('[data-theme]').forEach(toggle => {
+            toggle.addEventListener('click', () => {
+                this.querySelectorAll('[data-theme]').forEach(t => t.classList.remove('active'));
+                toggle.classList.add('active');
+                this.darkMode = toggle.dataset.theme === 'dark';
                 this.updatePreview();
             });
         });
@@ -697,17 +1001,31 @@ class FakeTextCreator extends HTMLElement {
         });
 
         // Input listeners
-        ['contactName', 'statusText', 'carrier', 'currentTime', 'batteryLevel', 'signalStrength', 'bgColor', 'language'].forEach(id => {
+        ['contactName', 'statusText', 'carrier', 'currentTime', 'batteryLevel', 'signalStrength', 'bgColor', 'language', 'messageApp', 'iphoneColor'].forEach(id => {
             const element = this.querySelector(`#${id}`);
-            element.addEventListener('input', () => this.updatePreview());
+            if (element) {
+                element.addEventListener('input', () => this.updatePreview());
+            }
         });
 
-        // Battery level display
+        // Avatar upload
+        this.querySelector('#avatarUpload').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    this.senderAvatar = e.target.result;
+                    this.updatePreview();
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Battery and signal displays
         this.querySelector('#batteryLevel').addEventListener('input', (e) => {
             this.querySelector('#batteryDisplay').textContent = e.target.value + '%';
         });
 
-        // Signal strength display
         this.querySelector('#signalStrength').addEventListener('input', (e) => {
             const strength = parseInt(e.target.value);
             const labels = ['No Signal', 'Poor', 'Fair', 'Good', 'Excellent'];
@@ -716,13 +1034,55 @@ class FakeTextCreator extends HTMLElement {
 
         // Message inputs
         this.addEventListener('input', (e) => {
-            if (e.target.classList.contains('message-input')) {
+            if (e.target.classList.contains('message-input') || e.target.classList.contains('message-time-input')) {
                 this.updateMessagesFromInputs();
                 this.updatePreview();
             }
         });
 
+        this.populateIphoneColors();
+        this.populateMessageApps();
+        this.updateIphoneColorVisibility();
         this.renderMessageInputs();
+    }
+
+    populateIphoneColors() {
+        const select = this.querySelector('#iphoneColor');
+        select.innerHTML = '';
+        Object.entries(this.iphoneColors).forEach(([key, color]) => {
+            const option = document.createElement('option');
+            option.value = key;
+            option.textContent = color.name;
+            if (key === this.iphoneColor) option.selected = true;
+            select.appendChild(option);
+        });
+    }
+
+    updateIphoneColorVisibility() {
+        const colorGroup = this.querySelector('#iphoneColorGroup');
+        colorGroup.style.display = this.currentModel === 'iphone' ? 'block' : 'none';
+    }
+
+    populateMessageApps() {
+        const messageAppSelect = this.querySelector('#messageApp');
+        const apps = this.messageApps[this.currentModel];
+        
+        messageAppSelect.innerHTML = '';
+        apps.forEach(app => {
+            const option = document.createElement('option');
+            option.value = app.value;
+            option.textContent = app.name;
+            if (app.value === this.currentApp) {
+                option.selected = true;
+            }
+            messageAppSelect.appendChild(option);
+        });
+        
+        const currentAppExists = apps.some(app => app.value === this.currentApp);
+        if (!currentAppExists) {
+            this.currentApp = apps[0].value;
+            messageAppSelect.value = this.currentApp;
+        }
     }
 
     renderMessageInputs() {
@@ -734,6 +1094,7 @@ class FakeTextCreator extends HTMLElement {
             messageItem.className = 'message-item';
             messageItem.innerHTML = `
                 <input type="text" class="message-input" placeholder="Enter message..." value="${message.text}">
+                <input type="time" class="message-time-input" value="${message.time}">
                 <div class="message-type-toggle ${message.type}" onclick="this.getRootNode().host.toggleMessageType(this, ${index})">${message.type === 'sent' ? 'Sent' : 'Received'}</div>
                 <button class="remove-message" onclick="this.getRootNode().host.removeMessage(${index})">×</button>
             `;
@@ -742,16 +1103,19 @@ class FakeTextCreator extends HTMLElement {
     }
 
     updateMessagesFromInputs() {
-        const inputs = this.querySelectorAll('.message-input');
-        inputs.forEach((input, index) => {
+        const messageInputs = this.querySelectorAll('.message-input');
+        const timeInputs = this.querySelectorAll('.message-time-input');
+        
+        messageInputs.forEach((input, index) => {
             if (this.messages[index]) {
                 this.messages[index].text = input.value;
+                this.messages[index].time = timeInputs[index].value;
             }
         });
     }
 
     addMessage() {
-        this.messages.push({ text: '', type: 'received' });
+        this.messages.push({ text: '', type: 'received', time: '14:30' });
         this.renderMessageInputs();
         this.updatePreview();
     }
@@ -779,95 +1143,120 @@ class FakeTextCreator extends HTMLElement {
         this.updatePreview();
     }
 
-    updatePreview() {
-        const phoneFrame = this.querySelector('#phoneFrame');
-        const screen = this.querySelector('#screen');
-        const statusBar = this.querySelector('#statusBar');
-        const messagesHeader = this.querySelector('#messagesHeader');
-        const contactInfo = this.querySelector('#contactInfo');
-        const messagesArea = this.querySelector('#messagesArea');
-
-        // Update phone model styling
-        phoneFrame.className = `phone-frame ${this.currentModel}`;
-        screen.className = `screen ${this.currentModel}`;
-        statusBar.className = `status-bar ${this.currentModel}`;
-        messagesHeader.className = `messages-header ${this.currentModel}`;
-        contactInfo.className = `contact-info ${this.currentModel}`;
-
-        // Update contact info
-        const contactName = this.querySelector('#contactName').value;
-        this.querySelector('#contactNameDisplay').textContent = contactName;
-        this.querySelector('#statusTextDisplay').textContent = this.querySelector('#statusText').value;
+    renderPhone() {
+        const container = this.querySelector('#phoneContainer');
+        this.iphoneColor = this.querySelector('#iphoneColor')?.value || 'purple';
         
-        // Update avatar
-        const initials = contactName.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
-        this.querySelector('#avatar').textContent = initials;
-
-        // Update time
-        const time = this.querySelector('#currentTime').value;
-        const timeFormatted = this.formatTime(time);
-        this.querySelector('#timeDisplay').textContent = timeFormatted;
-
-        // Update carrier
-        this.querySelector('#carrierDisplay').textContent = this.querySelector('#carrier').value;
-
-        // Update battery
-        const batteryLevel = this.querySelector('#batteryLevel').value;
-        this.querySelector('#batteryText').textContent = batteryLevel + '%';
-        this.querySelector('.battery-fill').style.width = batteryLevel + '%';
-        this.querySelector('#batteryIcon').style.display = this.showBattery ? 'flex' : 'none';
-        this.querySelector('#batteryText').style.display = this.showBattery ? 'inline' : 'none';
-
-        // Update signal
-        const signalStrength = this.querySelector('#signalStrength').value;
-        const signalBars = this.querySelectorAll('.signal-bar');
-        signalBars.forEach((bar, index) => {
-            bar.style.opacity = index < signalStrength ? '1' : '0.3';
-            if (this.currentModel === 'android') {
-                bar.classList.add('android');
-            }
-        });
-        this.querySelector('#signalBars').style.display = this.showSignal ? 'flex' : 'none';
-
-        // Update WiFi
-        this.querySelector('#wifiIcon').style.display = this.showWifi ? 'block' : 'none';
-
-        // Update background
-        const bgColor = this.querySelector('#bgColor').value;
-        if (bgColor !== '#ffffff') {
-            messagesArea.style.backgroundColor = bgColor;
-            messagesArea.classList.add('custom-bg');
+        if (this.currentModel === 'iphone') {
+            container.innerHTML = `
+                <div class="iphone-x" style="background-image: ${this.iphoneColors[this.iphoneColor].gradient}">
+                    <div class="iphone-speaker"></div>
+                    <div class="iphone-camera"></div>
+                    <div class="phone-screen">
+                        ${this.renderScreenContent()}
+                    </div>
+                </div>
+            `;
         } else {
-            messagesArea.style.backgroundColor = '';
-            messagesArea.classList.remove('custom-bg');
+            container.innerHTML = `
+                <div class="android-phone">
+                    <div class="android-frame">
+                        <div class="phone-screen">
+                            ${this.renderScreenContent()}
+                        </div>
+                    </div>
+                </div>
+            `;
         }
-
-        // Update messages
-        this.updateMessages();
     }
 
-    updateMessages() {
-        const messagesArea = this.querySelector('#messagesArea');
-        messagesArea.innerHTML = '';
+    renderScreenContent() {
+        const contactName = this.querySelector('#contactName')?.value || 'John Doe';
+        const statusText = this.querySelector('#statusText')?.value || 'Active now';
+        const carrier = this.querySelector('#carrier')?.value || 'Verizon';
+        const currentTime = this.querySelector('#currentTime')?.value || '14:30';
+        const batteryLevel = this.querySelector('#batteryLevel')?.value || 85;
+        const signalStrength = this.querySelector('#signalStrength')?.value || 4;
+        
+        const timeFormatted = this.formatTime(currentTime);
+        const initials = contactName.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+        
+        const avatarContent = this.senderAvatar ? 
+            `<img src="${this.senderAvatar}" alt="Avatar">` : 
+            initials;
 
+        const appClasses = `${this.currentModel} ${this.currentApp} ${this.darkMode ? 'dark' : ''}`;
+
+        return `
+            <div class="status-bar ${appClasses}">
+                <div class="status-left">
+                    <span>${timeFormatted}</span>
+                </div>
+                <div class="status-right">
+                    ${this.showSignal ? `<div class="signal-bars">
+                        ${Array.from({length: 4}, (_, i) => 
+                            `<div class="signal-bar" style="height: ${(i + 1) * 2 + 2}px; opacity: ${i < signalStrength ? 1 : 0.3}"></div>`
+                        ).join('')}
+                    </div>` : ''}
+                    ${this.showWifi ? '<div style="font-size: 14px;">📶</div>' : ''}
+                    <span>${carrier}</span>
+                    ${this.showBattery ? `
+                        <div class="battery-icon">
+                            <div class="battery-fill" style="width: ${batteryLevel}%;"></div>
+                            <div class="battery-tip"></div>
+                        </div>
+                        <span>${batteryLevel}%</span>
+                    ` : ''}
+                </div>
+            </div>
+            
+            <div class="messages-header ${appClasses}">
+                <div class="avatar">${avatarContent}</div>
+                <div class="contact-info ${appClasses}">
+                    <h3>${contactName}</h3>
+                    <p>${statusText}</p>
+                </div>
+            </div>
+            
+            <div class="messages-area ${appClasses}" id="messagesArea">
+                ${this.renderMessages()}
+            </div>
+        `;
+    }
+
+    renderMessages() {
+        const bgColor = this.querySelector('#bgColor')?.value || '#ffffff';
+        
         if (this.messages.length === 0 || this.messages.every(msg => !msg.text.trim())) {
-            messagesArea.innerHTML = `<div class="empty-messages ${this.darkMode ? 'dark' : ''}">No messages yet. Add some messages above!</div>`;
-            return;
+            return '<div style="display: flex; align-items: center; justify-content: center; height: 200px; color: #9ca3af; font-size: 14px;">No messages yet. Add some messages above!</div>';
         }
 
-        this.messages.forEach((message) => {
-            if (message.text.trim()) {
-                const messageDiv = document.createElement('div');
-                messageDiv.className = `message ${message.type} ${this.currentModel} ${this.darkMode ? 'dark' : ''}`;
-                
-                messageDiv.innerHTML = `
+        return this.messages.map(message => {
+            if (!message.text.trim()) return '';
+            
+            const appClasses = `${this.currentModel} ${this.currentApp} ${this.darkMode ? 'dark' : ''}`;
+            const timeFormatted = this.formatTime(message.time);
+            
+            return `
+                <div class="message ${message.type} ${appClasses}">
                     ${message.text}
-                    <div class="message-time">${this.formatTime(this.querySelector('#currentTime').value)}</div>
-                `;
-                
-                messagesArea.appendChild(messageDiv);
-            }
-        });
+                    <div class="message-time">${timeFormatted}</div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    updatePreview() {
+        this.currentApp = this.querySelector('#messageApp')?.value || 'imessage';
+        this.renderPhone();
+        
+        // Update custom background if set
+        const bgColor = this.querySelector('#bgColor')?.value || '#ffffff';
+        const messagesArea = this.querySelector('#messagesArea');
+        if (messagesArea && bgColor !== '#ffffff') {
+            messagesArea.style.backgroundColor = bgColor;
+            messagesArea.classList.add('custom-bg');
+        }
     }
 
     formatTime(timeString) {
@@ -878,29 +1267,32 @@ class FakeTextCreator extends HTMLElement {
         return `${hour12}:${minutes} ${ampm}`;
     }
 
-    exportImage() {
-        const phoneContainer = this.querySelector('.phone-container');
+    async exportImage(format = 'png') {
+        const phoneContainer = this.querySelector('#phoneContainer');
         
-        // Create a temporary canvas
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        
-        // Set high resolution
-        const scale = 2;
-        canvas.width = 320 * scale;
-        canvas.height = 640 * scale;
-        ctx.scale(scale, scale);
-        
-        // For now, show a simple alert as html2canvas would need to be loaded externally
-        alert('To export as image, you would need to integrate html2canvas library. For now, please take a screenshot of the phone preview.');
-        
-        // In a real implementation, you would use:
-        // html2canvas(phoneContainer).then(canvas => {
-        //     const link = document.createElement('a');
-        //     link.download = 'fake-text-message.png';
-        //     link.href = canvas.toDataURL();
-        //     link.click();
-        // });
+        if (!window.html2canvas) {
+            alert('Image export library is loading. Please wait a moment and try again.');
+            return;
+        }
+
+        try {
+            const canvas = await html2canvas(phoneContainer, {
+                scale: 3,
+                useCORS: true,
+                allowTaint: true,
+                backgroundColor: null,
+                width: phoneContainer.offsetWidth,
+                height: phoneContainer.offsetHeight
+            });
+
+            const link = document.createElement('a');
+            link.download = `fake-text-message.${format}`;
+            link.href = canvas.toDataURL(`image/${format}`, format === 'jpg' ? 0.95 : 1.0);
+            link.click();
+        } catch (error) {
+            console.error('Export failed:', error);
+            alert('Export failed. Please try again or use a different browser.');
+        }
     }
 }
 
