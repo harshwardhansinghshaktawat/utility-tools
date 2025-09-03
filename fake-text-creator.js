@@ -423,7 +423,7 @@ class FakeTextCreator extends HTMLElement {
                 }
 
                 .messages-area.dark { background: #1c1c1e; }
-                .messages-area.dark.android { background: #121212; }
+                .phone-screen.android .messages-area.dark { background: #121212; }
 
                 .messages-area.whatsapp {
                     background: #ece5dd;
