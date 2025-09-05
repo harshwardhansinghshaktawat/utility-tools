@@ -36,6 +36,7 @@ class ProductBoxCreator extends HTMLElement {
         this.render();
         this.initThreeJS();
         this.setupEventListeners();
+        this.updateBackgroundControls();
     }
 
     render() {
