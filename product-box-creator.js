@@ -11,6 +11,15 @@ class ProductBoxCreator extends HTMLElement {
         this.camera = null;
         this.renderer = null;
         this.box = null;
+        this.shadowPlane = null;
+        this.reflectionCube = null;
+        
+        // Lighting
+        this.lights = {
+            ambient: null,
+            directional: null,
+            point: null
+        };
         
         // Textures and materials
         this.textures = {
@@ -37,7 +46,23 @@ class ProductBoxCreator extends HTMLElement {
             gradientStart: '#f0f0f0',
             gradientEnd: '#e0e0e0',
             gradientDirection: 'to bottom',
-            exportResolution: 2048
+            exportResolution: 2048,
+            
+            // Advanced lighting
+            ambientIntensity: 0.4,
+            directionalIntensity: 0.8,
+            pointIntensity: 0.3,
+            shadowIntensity: 0.3,
+            
+            // Material properties
+            materialType: 'satin', // 'matte', 'satin', 'glossy', 'metallic'
+            roughness: 0.3,
+            metalness: 0.0,
+            
+            // Effects
+            enableShadows: true,
+            enableReflections: false,
+            reflectionIntensity: 0.1
         };
     }
 
@@ -64,7 +89,7 @@ class ProductBoxCreator extends HTMLElement {
                 }
                 
                 .control-panel {
-                    width: 320px;
+                    width: 340px;
                     padding: 20px;
                     background: #2c3e50;
                     color: white;
@@ -85,20 +110,20 @@ class ProductBoxCreator extends HTMLElement {
                 }
                 
                 .control-section {
-                    margin-bottom: 25px;
+                    margin-bottom: 20px;
                     padding-bottom: 15px;
                     border-bottom: 1px solid #34495e;
                 }
                 
                 .control-section h3 {
-                    margin: 0 0 15px 0;
+                    margin: 0 0 12px 0;
                     color: #ecf0f1;
-                    font-size: 16px;
+                    font-size: 15px;
                 }
                 
                 .file-input-wrapper {
                     position: relative;
-                    margin-bottom: 15px;
+                    margin-bottom: 12px;
                 }
                 
                 .file-input {
@@ -108,16 +133,16 @@ class ProductBoxCreator extends HTMLElement {
                 .file-button {
                     display: block;
                     width: 100%;
-                    padding: 12px 10px;
+                    padding: 10px 8px;
                     background: #3498db;
                     color: white;
                     border: none;
-                    border-radius: 5px;
+                    border-radius: 4px;
                     cursor: pointer;
                     text-align: center;
-                    font-size: 13px;
+                    font-size: 12px;
                     transition: background 0.3s;
-                    line-height: 1.3;
+                    line-height: 1.2;
                 }
                 
                 .file-button:hover {
@@ -129,62 +154,73 @@ class ProductBoxCreator extends HTMLElement {
                 }
                 
                 .dimension-hint {
-                    font-size: 11px;
+                    font-size: 10px;
                     color: #95a5a6;
-                    margin-top: 5px;
+                    margin-top: 3px;
                     font-style: italic;
-                    line-height: 1.2;
+                    line-height: 1.1;
                 }
                 
                 .control-group {
-                    margin-bottom: 15px;
+                    margin-bottom: 12px;
                 }
                 
                 .control-group label {
                     display: block;
-                    margin-bottom: 5px;
-                    font-size: 12px;
+                    margin-bottom: 4px;
+                    font-size: 11px;
                     color: #bdc3c7;
                 }
                 
                 .control-group input[type="range"] {
                     width: 100%;
-                    margin-bottom: 5px;
+                    margin-bottom: 4px;
                 }
                 
                 .control-group input[type="color"] {
                     width: 100%;
-                    height: 40px;
+                    height: 35px;
                     border: none;
-                    border-radius: 5px;
+                    border-radius: 4px;
                     cursor: pointer;
                 }
                 
                 .control-group select {
                     width: 100%;
-                    padding: 8px;
+                    padding: 6px;
                     border: none;
-                    border-radius: 5px;
+                    border-radius: 4px;
                     background: #34495e;
                     color: white;
-                    font-size: 14px;
+                    font-size: 12px;
+                }
+                
+                .control-group input[type="checkbox"] {
+                    margin-right: 8px;
+                }
+                
+                .checkbox-label {
+                    display: flex;
+                    align-items: center;
+                    font-size: 12px;
+                    cursor: pointer;
                 }
                 
                 .export-section {
-                    margin-top: 20px;
+                    margin-top: 15px;
                 }
                 
                 .export-button {
                     width: 100%;
-                    padding: 15px;
+                    padding: 12px;
                     background: #e74c3c;
                     color: white;
                     border: none;
-                    border-radius: 5px;
+                    border-radius: 4px;
                     cursor: pointer;
-                    font-size: 16px;
+                    font-size: 14px;
                     font-weight: bold;
-                    margin-bottom: 10px;
+                    margin-bottom: 8px;
                     transition: background 0.3s;
                 }
                 
@@ -193,21 +229,21 @@ class ProductBoxCreator extends HTMLElement {
                 }
                 
                 .value-display {
-                    font-size: 12px;
+                    font-size: 10px;
                     color: #95a5a6;
                     text-align: right;
                 }
                 
                 .reset-button {
                     width: 100%;
-                    padding: 10px;
+                    padding: 8px;
                     background: #95a5a6;
                     color: white;
                     border: none;
-                    border-radius: 5px;
+                    border-radius: 4px;
                     cursor: pointer;
-                    font-size: 14px;
-                    margin-top: 10px;
+                    font-size: 12px;
+                    margin-top: 8px;
                 }
                 
                 .reset-button:hover {
@@ -215,22 +251,28 @@ class ProductBoxCreator extends HTMLElement {
                 }
                 
                 .background-controls {
-                    margin-top: 10px;
-                    padding-top: 10px;
+                    margin-top: 8px;
+                    padding-top: 8px;
                     border-top: 1px solid #34495e;
                 }
                 
                 .package-info {
                     background: #34495e;
-                    padding: 10px;
-                    border-radius: 5px;
-                    margin-bottom: 15px;
-                    font-size: 12px;
-                    line-height: 1.4;
+                    padding: 8px;
+                    border-radius: 4px;
+                    margin-bottom: 12px;
+                    font-size: 11px;
+                    line-height: 1.3;
                 }
                 
                 .package-info strong {
                     color: #3498db;
+                }
+                
+                .two-column {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 8px;
                 }
             </style>
             
@@ -297,13 +339,15 @@ class ProductBoxCreator extends HTMLElement {
                         </div>
                         
                         <div class="background-controls" id="gradientControls" style="display: none;">
-                            <div class="control-group">
-                                <label>Start Color</label>
-                                <input type="color" id="gradientStart" value="#f0f0f0">
-                            </div>
-                            <div class="control-group">
-                                <label>End Color</label>
-                                <input type="color" id="gradientEnd" value="#e0e0e0">
+                            <div class="two-column">
+                                <div class="control-group">
+                                    <label>Start Color</label>
+                                    <input type="color" id="gradientStart" value="#f0f0f0">
+                                </div>
+                                <div class="control-group">
+                                    <label>End Color</label>
+                                    <input type="color" id="gradientEnd" value="#e0e0e0">
+                                </div>
                             </div>
                             <div class="control-group">
                                 <label>Direction</label>
@@ -336,21 +380,84 @@ class ProductBoxCreator extends HTMLElement {
                     </div>
                     
                     <div class="control-section">
-                        <h3>🎥 Camera Controls</h3>
+                        <h3>🎥 View Controls</h3>
                         <div class="control-group">
                             <label>Rotation X</label>
-                            <input type="range" id="rotationX" min="0" max="360" step="1" value="15">
-                            <div class="value-display" id="rotationXValue">15°</div>
+                            <input type="range" id="rotationX" min="-30" max="60" step="1" value="20">
+                            <div class="value-display" id="rotationXValue">20°</div>
                         </div>
                         <div class="control-group">
                             <label>Rotation Y</label>
-                            <input type="range" id="rotationY" min="0" max="360" step="1" value="45">
-                            <div class="value-display" id="rotationYValue">45°</div>
+                            <input type="range" id="rotationY" min="-90" max="90" step="1" value="30">
+                            <div class="value-display" id="rotationYValue">30°</div>
                         </div>
                         <div class="control-group">
-                            <label>Zoom</label>
-                            <input type="range" id="zoom" min="2" max="10" step="0.1" value="4">
-                            <div class="value-display" id="zoomValue">4.0</div>
+                            <label>Distance</label>
+                            <input type="range" id="zoom" min="3" max="8" step="0.1" value="4.5">
+                            <div class="value-display" id="zoomValue">4.5</div>
+                        </div>
+                    </div>
+                    
+                    <div class="control-section">
+                        <h3>💡 Lighting</h3>
+                        <div class="control-group">
+                            <label>Ambient Light</label>
+                            <input type="range" id="ambientIntensity" min="0" max="1" step="0.05" value="0.4">
+                            <div class="value-display" id="ambientValue">0.4</div>
+                        </div>
+                        <div class="control-group">
+                            <label>Main Light</label>
+                            <input type="range" id="directionalIntensity" min="0" max="2" step="0.1" value="0.8">
+                            <div class="value-display" id="directionalValue">0.8</div>
+                        </div>
+                        <div class="control-group">
+                            <label>Fill Light</label>
+                            <input type="range" id="pointIntensity" min="0" max="1" step="0.05" value="0.3">
+                            <div class="value-display" id="pointValue">0.3</div>
+                        </div>
+                    </div>
+                    
+                    <div class="control-section">
+                        <h3>🎭 Material</h3>
+                        <div class="control-group">
+                            <label>Material Type</label>
+                            <select id="materialType">
+                                <option value="matte">Matte</option>
+                                <option value="satin" selected>Satin</option>
+                                <option value="glossy">Glossy</option>
+                                <option value="metallic">Metallic</option>
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <label>Surface Roughness</label>
+                            <input type="range" id="roughness" min="0" max="1" step="0.05" value="0.3">
+                            <div class="value-display" id="roughnessValue">0.3</div>
+                        </div>
+                    </div>
+                    
+                    <div class="control-section">
+                        <h3>✨ Effects</h3>
+                        <div class="control-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="enableShadows" checked>
+                                Enable Shadows
+                            </label>
+                        </div>
+                        <div class="control-group">
+                            <label>Shadow Intensity</label>
+                            <input type="range" id="shadowIntensity" min="0" max="1" step="0.05" value="0.3">
+                            <div class="value-display" id="shadowValue">0.3</div>
+                        </div>
+                        <div class="control-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="enableReflections">
+                                Enable Floor Reflection
+                            </label>
+                        </div>
+                        <div class="control-group">
+                            <label>Reflection Intensity</label>
+                            <input type="range" id="reflectionIntensity" min="0" max="0.5" step="0.02" value="0.1">
+                            <div class="value-display" id="reflectionValue">0.1</div>
                         </div>
                     </div>
                     
@@ -391,9 +498,8 @@ class ProductBoxCreator extends HTMLElement {
         this.scene = new THREE.Scene();
 
         // Camera - positioned to show software package properly
-        this.camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
-        this.camera.position.set(4, 2, 4);
-
+        this.camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+        
         // Renderer with alpha for transparency
         this.renderer = new THREE.WebGLRenderer({ 
             canvas, 
@@ -404,23 +510,23 @@ class ProductBoxCreator extends HTMLElement {
         this.renderer.setSize(container.clientWidth, container.clientHeight);
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.renderer.gammaOutput = true;
+        this.renderer.gammaFactor = 2.2;
         
         // Set initial background
         this.updateBackground();
 
-        // Lights
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-        this.scene.add(ambientLight);
+        // Setup lighting
+        this.setupLighting();
 
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        directionalLight.position.set(10, 10, 5);
-        directionalLight.castShadow = true;
-        directionalLight.shadow.mapSize.width = 2048;
-        directionalLight.shadow.mapSize.height = 2048;
-        this.scene.add(directionalLight);
+        // Create shadow plane
+        this.createShadowPlane();
 
         // Create software package box
         this.createSoftwareBox();
+
+        // Set initial camera position
+        this.updateCameraPosition();
 
         // Start render loop
         this.animate();
@@ -438,6 +544,54 @@ class ProductBoxCreator extends HTMLElement {
         });
     }
 
+    setupLighting() {
+        // Remove existing lights
+        if (this.lights.ambient) this.scene.remove(this.lights.ambient);
+        if (this.lights.directional) this.scene.remove(this.lights.directional);
+        if (this.lights.point) this.scene.remove(this.lights.point);
+
+        // Ambient light
+        this.lights.ambient = new THREE.AmbientLight(0xffffff, this.settings.ambientIntensity);
+        this.scene.add(this.lights.ambient);
+
+        // Main directional light
+        this.lights.directional = new THREE.DirectionalLight(0xffffff, this.settings.directionalIntensity);
+        this.lights.directional.position.set(5, 8, 3);
+        this.lights.directional.castShadow = this.settings.enableShadows;
+        this.lights.directional.shadow.mapSize.width = 2048;
+        this.lights.directional.shadow.mapSize.height = 2048;
+        this.lights.directional.shadow.camera.near = 0.1;
+        this.lights.directional.shadow.camera.far = 50;
+        this.lights.directional.shadow.camera.left = -10;
+        this.lights.directional.shadow.camera.right = 10;
+        this.lights.directional.shadow.camera.top = 10;
+        this.lights.directional.shadow.camera.bottom = -10;
+        this.scene.add(this.lights.directional);
+
+        // Fill point light
+        this.lights.point = new THREE.PointLight(0xffffff, this.settings.pointIntensity, 0, 2);
+        this.lights.point.position.set(-3, 2, 4);
+        this.scene.add(this.lights.point);
+    }
+
+    createShadowPlane() {
+        if (this.shadowPlane) {
+            this.scene.remove(this.shadowPlane);
+        }
+
+        const planeGeometry = new THREE.PlaneGeometry(10, 10);
+        const planeMaterial = new THREE.ShadowMaterial({ 
+            opacity: this.settings.shadowIntensity 
+        });
+        
+        this.shadowPlane = new THREE.Mesh(planeGeometry, planeMaterial);
+        this.shadowPlane.rotation.x = -Math.PI / 2;
+        this.shadowPlane.position.y = -this.boxDimensions.height / 2 - 0.01;
+        this.shadowPlane.receiveShadow = true;
+        this.shadowPlane.visible = this.settings.enableShadows;
+        this.scene.add(this.shadowPlane);
+    }
+
     createSoftwareBox() {
         // Remove existing box
         if (this.box) {
@@ -451,29 +605,110 @@ class ProductBoxCreator extends HTMLElement {
             this.boxDimensions.depth
         );
 
-        // Create materials for each face
-        const materials = [
-            new THREE.MeshLambertMaterial({ color: 0xcccccc }), // right
-            new THREE.MeshLambertMaterial({ color: 0xcccccc }), // left
-            new THREE.MeshLambertMaterial({ color: 0xcccccc }), // top
-            new THREE.MeshLambertMaterial({ color: 0xcccccc }), // bottom
-            new THREE.MeshLambertMaterial({ color: 0xcccccc }), // front
-            new THREE.MeshLambertMaterial({ color: 0xcccccc })  // back
-        ];
-
-        // Apply textures if available
-        const faceMapping = ['right', 'left', 'top', 'bottom', 'front', 'back'];
-        faceMapping.forEach((face, index) => {
-            if (this.textures[face]) {
-                materials[index].map = this.textures[face];
-                materials[index].needsUpdate = true;
-            }
-        });
+        // Create materials based on settings
+        const materials = this.createMaterials();
 
         this.box = new THREE.Mesh(geometry, materials);
         this.box.castShadow = true;
         this.box.receiveShadow = true;
+        
+        // Add reflection if enabled
+        if (this.settings.enableReflections) {
+            this.createReflection();
+        }
+        
         this.scene.add(this.box);
+    }
+
+    createMaterials() {
+        const materials = [];
+        
+        // Material properties based on type
+        const materialProps = this.getMaterialProperties();
+        
+        // Create materials for each face
+        const faceMapping = ['right', 'left', 'top', 'bottom', 'front', 'back'];
+        
+        for (let i = 0; i < 6; i++) {
+            const face = faceMapping[i];
+            
+            const material = new THREE.MeshStandardMaterial({
+                color: 0xffffff,
+                roughness: materialProps.roughness,
+                metalness: materialProps.metalness,
+                ...materialProps.extra
+            });
+            
+            if (this.textures[face]) {
+                material.map = this.textures[face];
+            }
+            
+            materials.push(material);
+        }
+        
+        return materials;
+    }
+
+    getMaterialProperties() {
+        switch (this.settings.materialType) {
+            case 'matte':
+                return {
+                    roughness: 0.8,
+                    metalness: 0.0,
+                    extra: {}
+                };
+            case 'satin':
+                return {
+                    roughness: this.settings.roughness,
+                    metalness: 0.0,
+                    extra: {}
+                };
+            case 'glossy':
+                return {
+                    roughness: 0.1,
+                    metalness: 0.0,
+                    extra: {}
+                };
+            case 'metallic':
+                return {
+                    roughness: this.settings.roughness,
+                    metalness: 0.8,
+                    extra: {}
+                };
+            default:
+                return {
+                    roughness: this.settings.roughness,
+                    metalness: 0.0,
+                    extra: {}
+                };
+        }
+    }
+
+    createReflection() {
+        if (this.reflectionCube) {
+            this.scene.remove(this.reflectionCube);
+        }
+
+        const geometry = new THREE.BoxGeometry(
+            this.boxDimensions.width,
+            this.boxDimensions.height,
+            this.boxDimensions.depth
+        );
+
+        const materials = this.box.material.map(mat => {
+            const reflMat = mat.clone();
+            reflMat.transparent = true;
+            reflMat.opacity = this.settings.reflectionIntensity;
+            return reflMat;
+        });
+
+        this.reflectionCube = new THREE.Mesh(geometry, materials);
+        this.reflectionCube.position.copy(this.box.position);
+        this.reflectionCube.position.y = -this.boxDimensions.height - 0.02;
+        this.reflectionCube.scale.y = -1;
+        this.reflectionCube.visible = this.settings.enableReflections;
+        
+        this.scene.add(this.reflectionCube);
     }
 
     updateBackground() {
@@ -510,13 +745,39 @@ class ProductBoxCreator extends HTMLElement {
     updateCameraPosition() {
         const rotX = parseFloat(this.shadowRoot.getElementById('rotationX').value) * Math.PI / 180;
         const rotY = parseFloat(this.shadowRoot.getElementById('rotationY').value) * Math.PI / 180;
-        const zoom = parseFloat(this.shadowRoot.getElementById('zoom').value);
+        const distance = parseFloat(this.shadowRoot.getElementById('zoom').value);
 
-        this.camera.position.x = zoom * Math.sin(rotY) * Math.cos(rotX);
-        this.camera.position.y = zoom * Math.sin(rotX);
-        this.camera.position.z = zoom * Math.cos(rotY) * Math.cos(rotX);
-        
+        // Improved camera positioning to maintain better perspective
+        const x = distance * Math.sin(rotY) * Math.cos(rotX);
+        const y = distance * Math.sin(rotX);
+        const z = distance * Math.cos(rotY) * Math.cos(rotX);
+
+        this.camera.position.set(x, y, z);
         this.camera.lookAt(0, 0, 0);
+    }
+
+    updateLighting() {
+        this.lights.ambient.intensity = this.settings.ambientIntensity;
+        this.lights.directional.intensity = this.settings.directionalIntensity;
+        this.lights.point.intensity = this.settings.pointIntensity;
+        
+        this.lights.directional.castShadow = this.settings.enableShadows;
+        if (this.shadowPlane) {
+            this.shadowPlane.visible = this.settings.enableShadows;
+            this.shadowPlane.material.opacity = this.settings.shadowIntensity;
+        }
+    }
+
+    updateMaterial() {
+        if (this.box && this.box.material) {
+            const materialProps = this.getMaterialProperties();
+            
+            this.box.material.forEach(material => {
+                material.roughness = materialProps.roughness;
+                material.metalness = materialProps.metalness;
+                material.needsUpdate = true;
+            });
+        }
     }
 
     updateBackgroundControls() {
@@ -559,14 +820,13 @@ class ProductBoxCreator extends HTMLElement {
             }
         });
 
-        // Background type handler
+        // Background handlers
         this.shadowRoot.getElementById('backgroundType').addEventListener('change', (e) => {
             this.settings.backgroundType = e.target.value;
             this.updateBackgroundControls();
             this.updateBackground();
         });
 
-        // Background color handlers
         this.shadowRoot.getElementById('backgroundColor').addEventListener('input', (e) => {
             this.settings.backgroundColor = e.target.value;
             if (this.settings.backgroundType === 'color') {
@@ -630,6 +890,56 @@ class ProductBoxCreator extends HTMLElement {
                 }
                 this.updateCameraPosition();
             });
+        });
+
+        // Lighting handlers
+        ['ambientIntensity', 'directionalIntensity', 'pointIntensity', 'shadowIntensity'].forEach(id => {
+            const input = this.shadowRoot.getElementById(id);
+            const valueDisplay = this.shadowRoot.getElementById(id.replace('Intensity', 'Value'));
+            
+            input.addEventListener('input', (e) => {
+                const value = parseFloat(e.target.value);
+                this.settings[id] = value;
+                valueDisplay.textContent = value.toFixed(2);
+                this.updateLighting();
+            });
+        });
+
+        // Material handlers
+        this.shadowRoot.getElementById('materialType').addEventListener('change', (e) => {
+            this.settings.materialType = e.target.value;
+            this.updateMaterial();
+        });
+
+        this.shadowRoot.getElementById('roughness').addEventListener('input', (e) => {
+            this.settings.roughness = parseFloat(e.target.value);
+            this.shadowRoot.getElementById('roughnessValue').textContent = this.settings.roughness.toFixed(2);
+            this.updateMaterial();
+        });
+
+        // Effects handlers
+        this.shadowRoot.getElementById('enableShadows').addEventListener('change', (e) => {
+            this.settings.enableShadows = e.target.checked;
+            this.updateLighting();
+        });
+
+        this.shadowRoot.getElementById('enableReflections').addEventListener('change', (e) => {
+            this.settings.enableReflections = e.target.checked;
+            if (this.settings.enableReflections) {
+                this.createReflection();
+            } else if (this.reflectionCube) {
+                this.reflectionCube.visible = false;
+            }
+        });
+
+        this.shadowRoot.getElementById('reflectionIntensity').addEventListener('input', (e) => {
+            this.settings.reflectionIntensity = parseFloat(e.target.value);
+            this.shadowRoot.getElementById('reflectionValue').textContent = this.settings.reflectionIntensity.toFixed(2);
+            if (this.reflectionCube) {
+                this.reflectionCube.material.forEach(mat => {
+                    mat.opacity = this.settings.reflectionIntensity;
+                });
+            }
         });
 
         // Export handlers
@@ -697,6 +1007,8 @@ class ProductBoxCreator extends HTMLElement {
         tempRenderer.setSize(resolution, resolution);
         tempRenderer.shadowMap.enabled = true;
         tempRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        tempRenderer.gammaOutput = true;
+        tempRenderer.gammaFactor = 2.2;
 
         // Set background based on type
         if (this.settings.backgroundType === 'transparent') {
@@ -707,10 +1019,18 @@ class ProductBoxCreator extends HTMLElement {
             tempRenderer.setClearColor(0x000000, 0);
         }
 
-        // Update camera for square output
-        const tempCamera = this.camera.clone();
-        tempCamera.aspect = 1;
-        tempCamera.updateProjectionMatrix();
+        // Create export camera with closer framing
+        const tempCamera = new THREE.PerspectiveCamera(35, 1, 0.1, 1000);
+        
+        // Position camera closer for better framing in export
+        const distance = 3.2; // Closer distance for export
+        const rotX = 20 * Math.PI / 180;
+        const rotY = 30 * Math.PI / 180;
+        
+        tempCamera.position.x = distance * Math.sin(rotY) * Math.cos(rotX);
+        tempCamera.position.y = distance * Math.sin(rotX);
+        tempCamera.position.z = distance * Math.cos(rotY) * Math.cos(rotX);
+        tempCamera.lookAt(0, 0, 0);
 
         // Render 3D scene
         tempRenderer.render(this.scene, tempCamera);
@@ -787,15 +1107,24 @@ class ProductBoxCreator extends HTMLElement {
             }
         });
 
-        // Reset controls
+        // Reset all controls to default values
         this.shadowRoot.getElementById('backgroundType').value = 'color';
         this.shadowRoot.getElementById('backgroundColor').value = '#f0f0f0';
         this.shadowRoot.getElementById('gradientStart').value = '#f0f0f0';
         this.shadowRoot.getElementById('gradientEnd').value = '#e0e0e0';
         this.shadowRoot.getElementById('gradientDirection').value = 'to bottom';
-        this.shadowRoot.getElementById('rotationX').value = '15';
-        this.shadowRoot.getElementById('rotationY').value = '45';
-        this.shadowRoot.getElementById('zoom').value = '4';
+        this.shadowRoot.getElementById('rotationX').value = '20';
+        this.shadowRoot.getElementById('rotationY').value = '30';
+        this.shadowRoot.getElementById('zoom').value = '4.5';
+        this.shadowRoot.getElementById('ambientIntensity').value = '0.4';
+        this.shadowRoot.getElementById('directionalIntensity').value = '0.8';
+        this.shadowRoot.getElementById('pointIntensity').value = '0.3';
+        this.shadowRoot.getElementById('shadowIntensity').value = '0.3';
+        this.shadowRoot.getElementById('materialType').value = 'satin';
+        this.shadowRoot.getElementById('roughness').value = '0.3';
+        this.shadowRoot.getElementById('enableShadows').checked = true;
+        this.shadowRoot.getElementById('enableReflections').checked = false;
+        this.shadowRoot.getElementById('reflectionIntensity').value = '0.1';
 
         // Reset settings
         this.settings = {
@@ -805,17 +1134,35 @@ class ProductBoxCreator extends HTMLElement {
             gradientStart: '#f0f0f0',
             gradientEnd: '#e0e0e0',
             gradientDirection: 'to bottom',
-            exportResolution: 2048
+            exportResolution: 2048,
+            ambientIntensity: 0.4,
+            directionalIntensity: 0.8,
+            pointIntensity: 0.3,
+            shadowIntensity: 0.3,
+            materialType: 'satin',
+            roughness: 0.3,
+            metalness: 0.0,
+            enableShadows: true,
+            enableReflections: false,
+            reflectionIntensity: 0.1
         };
 
-        // Update displays
-        this.shadowRoot.getElementById('rotationXValue').textContent = '15°';
-        this.shadowRoot.getElementById('rotationYValue').textContent = '45°';
-        this.shadowRoot.getElementById('zoomValue').textContent = '4.0';
+        // Update all displays
+        this.shadowRoot.getElementById('rotationXValue').textContent = '20°';
+        this.shadowRoot.getElementById('rotationYValue').textContent = '30°';
+        this.shadowRoot.getElementById('zoomValue').textContent = '4.5';
+        this.shadowRoot.getElementById('ambientValue').textContent = '0.40';
+        this.shadowRoot.getElementById('directionalValue').textContent = '0.80';
+        this.shadowRoot.getElementById('pointValue').textContent = '0.30';
+        this.shadowRoot.getElementById('shadowValue').textContent = '0.30';
+        this.shadowRoot.getElementById('roughnessValue').textContent = '0.30';
+        this.shadowRoot.getElementById('reflectionValue').textContent = '0.10';
 
-        // Update background controls and recreate box
+        // Update all systems
         this.updateBackgroundControls();
         this.updateBackground();
+        this.setupLighting();
+        this.createShadowPlane();
         this.createSoftwareBox();
         this.updateCameraPosition();
     }
