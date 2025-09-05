@@ -11,7 +11,6 @@ class ProductBoxCreator extends HTMLElement {
         this.camera = null;
         this.renderer = null;
         this.box = null;
-        this.controls = null;
         
         // Textures and materials
         this.textures = {
@@ -23,11 +22,21 @@ class ProductBoxCreator extends HTMLElement {
             right: null
         };
         
+        // Fixed software package dimensions (like the image reference)
+        this.boxDimensions = {
+            width: 1.4,  // Standard software package width
+            height: 2.0, // Standard software package height
+            depth: 0.3   // Thin depth like software packages
+        };
+        
         // Settings
         this.settings = {
             backgroundColor: '#f0f0f0',
-            boxSize: { width: 2, height: 2, depth: 2 },
-            perspective: { x: 0, y: 0, z: 5 },
+            backgroundType: 'color', // 'color', 'gradient', 'image', 'transparent'
+            backgroundImage: null,
+            gradientStart: '#f0f0f0',
+            gradientEnd: '#e0e0e0',
+            gradientDirection: 'to bottom',
             exportResolution: 2048
         };
     }
@@ -55,7 +64,7 @@ class ProductBoxCreator extends HTMLElement {
                 }
                 
                 .control-panel {
-                    width: 300px;
+                    width: 320px;
                     padding: 20px;
                     background: #2c3e50;
                     color: white;
@@ -66,7 +75,7 @@ class ProductBoxCreator extends HTMLElement {
                 .canvas-container {
                     flex: 1;
                     position: relative;
-                    background: #34495e;
+                    background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20"><rect width="10" height="10" fill="%23ffffff"/><rect x="10" y="10" width="10" height="10" fill="%23ffffff"/><rect x="10" y="0" width="10" height="10" fill="%23f0f0f0"/><rect x="0" y="10" width="10" height="10" fill="%23f0f0f0"/></svg>') repeat;
                 }
                 
                 #canvas {
@@ -89,7 +98,7 @@ class ProductBoxCreator extends HTMLElement {
                 
                 .file-input-wrapper {
                     position: relative;
-                    margin-bottom: 10px;
+                    margin-bottom: 15px;
                 }
                 
                 .file-input {
@@ -99,15 +108,16 @@ class ProductBoxCreator extends HTMLElement {
                 .file-button {
                     display: block;
                     width: 100%;
-                    padding: 10px;
+                    padding: 12px 10px;
                     background: #3498db;
                     color: white;
                     border: none;
                     border-radius: 5px;
                     cursor: pointer;
                     text-align: center;
-                    font-size: 14px;
+                    font-size: 13px;
                     transition: background 0.3s;
+                    line-height: 1.3;
                 }
                 
                 .file-button:hover {
@@ -116,6 +126,14 @@ class ProductBoxCreator extends HTMLElement {
                 
                 .file-button.has-image {
                     background: #27ae60;
+                }
+                
+                .dimension-hint {
+                    font-size: 11px;
+                    color: #95a5a6;
+                    margin-top: 5px;
+                    font-style: italic;
+                    line-height: 1.2;
                 }
                 
                 .control-group {
@@ -195,62 +213,125 @@ class ProductBoxCreator extends HTMLElement {
                 .reset-button:hover {
                     background: #7f8c8d;
                 }
+                
+                .background-controls {
+                    margin-top: 10px;
+                    padding-top: 10px;
+                    border-top: 1px solid #34495e;
+                }
+                
+                .package-info {
+                    background: #34495e;
+                    padding: 10px;
+                    border-radius: 5px;
+                    margin-bottom: 15px;
+                    font-size: 12px;
+                    line-height: 1.4;
+                }
+                
+                .package-info strong {
+                    color: #3498db;
+                }
             </style>
             
             <div class="container">
                 <div class="control-panel">
                     <div class="control-section">
+                        <h3>📦 Software Package Creator</h3>
+                        <div class="package-info">
+                            <strong>Fixed Dimensions:</strong> Professional software package proportions (1.4 × 2.0 × 0.3 ratio) like Adobe, Microsoft products.
+                        </div>
+                    </div>
+                
+                    <div class="control-section">
                         <h3>📁 Upload Images</h3>
                         <div class="file-input-wrapper">
                             <input type="file" id="front" class="file-input" accept="image/*">
                             <button class="file-button" data-face="front">📄 Front Face</button>
+                            <div class="dimension-hint">Recommended: 1400×2000px (main product face)</div>
                         </div>
                         <div class="file-input-wrapper">
                             <input type="file" id="back" class="file-input" accept="image/*">
                             <button class="file-button" data-face="back">📄 Back Face</button>
+                            <div class="dimension-hint">Recommended: 1400×2000px (product info/features)</div>
                         </div>
                         <div class="file-input-wrapper">
                             <input type="file" id="top" class="file-input" accept="image/*">
                             <button class="file-button" data-face="top">📄 Top Face</button>
+                            <div class="dimension-hint">Recommended: 1400×300px (thin top edge)</div>
                         </div>
                         <div class="file-input-wrapper">
                             <input type="file" id="bottom" class="file-input" accept="image/*">
                             <button class="file-button" data-face="bottom">📄 Bottom Face</button>
+                            <div class="dimension-hint">Recommended: 1400×300px (thin bottom edge)</div>
                         </div>
                         <div class="file-input-wrapper">
                             <input type="file" id="left" class="file-input" accept="image/*">
                             <button class="file-button" data-face="left">📄 Left Side</button>
+                            <div class="dimension-hint">Recommended: 300×2000px (narrow side edge)</div>
                         </div>
                         <div class="file-input-wrapper">
                             <input type="file" id="right" class="file-input" accept="image/*">
                             <button class="file-button" data-face="right">📄 Right Side</button>
+                            <div class="dimension-hint">Recommended: 300×2000px (narrow side edge)</div>
                         </div>
                     </div>
                     
                     <div class="control-section">
                         <h3>🎨 Background</h3>
                         <div class="control-group">
-                            <label>Background Color</label>
-                            <input type="color" id="backgroundColor" value="#f0f0f0">
+                            <label>Background Type</label>
+                            <select id="backgroundType">
+                                <option value="color">Solid Color</option>
+                                <option value="gradient">Gradient</option>
+                                <option value="image">Image</option>
+                                <option value="transparent">Transparent</option>
+                            </select>
                         </div>
-                    </div>
-                    
-                    <div class="control-section">
-                        <h3>📦 Box Dimensions</h3>
-                        <div class="control-group">
-                            <label>Width</label>
-                            <input type="range" id="boxWidth" min="0.5" max="4" step="0.1" value="2">
-                            <div class="value-display" id="widthValue">2.0</div>
+                        
+                        <div class="background-controls" id="colorControls">
+                            <div class="control-group">
+                                <label>Color</label>
+                                <input type="color" id="backgroundColor" value="#f0f0f0">
+                            </div>
                         </div>
-                        <div class="control-group">
-                            <label>Height</label>
-                            <input type="range" id="boxHeight" min="0.5" max="4" step="0.1" value="2">
-                            <div class="value-display" id="heightValue">2.0</div>
+                        
+                        <div class="background-controls" id="gradientControls" style="display: none;">
+                            <div class="control-group">
+                                <label>Start Color</label>
+                                <input type="color" id="gradientStart" value="#f0f0f0">
+                            </div>
+                            <div class="control-group">
+                                <label>End Color</label>
+                                <input type="color" id="gradientEnd" value="#e0e0e0">
+                            </div>
+                            <div class="control-group">
+                                <label>Direction</label>
+                                <select id="gradientDirection">
+                                    <option value="to bottom">Top to Bottom</option>
+                                    <option value="to top">Bottom to Top</option>
+                                    <option value="to right">Left to Right</option>
+                                    <option value="to left">Right to Left</option>
+                                    <option value="to bottom right">Diagonal ↘</option>
+                                    <option value="to bottom left">Diagonal ↙</option>
+                                    <option value="to top right">Diagonal ↗</option>
+                                    <option value="to top left">Diagonal ↖</option>
+                                    <option value="radial">Radial</option>
+                                </select>
+                            </div>
                         </div>
-                        <div class="control-group">
-                            <label>Depth</label>
-                            <input type="range" id="boxDepth" min="0.5" max="4" step="0.1" value="2">
-                            <div class="value-display" id="depthValue">2.0</div>
+                        
+                        <div class="background-controls" id="imageControls" style="display: none;">
+                            <div class="file-input-wrapper">
+                                <input type="file" id="backgroundImage" class="file-input" accept="image/*">
+                                <button class="file-button" id="backgroundImageButton">🖼️ Upload Background Image</button>
+                            </div>
+                        </div>
+                        
+                        <div class="background-controls" id="transparentControls" style="display: none;">
+                            <div class="package-info">
+                                <strong>Transparent Background:</strong> Perfect for overlays, logos, and web graphics. Checkerboard pattern shows transparency.
+                            </div>
                         </div>
                     </div>
                     
@@ -268,8 +349,8 @@ class ProductBoxCreator extends HTMLElement {
                         </div>
                         <div class="control-group">
                             <label>Zoom</label>
-                            <input type="range" id="zoom" min="2" max="10" step="0.1" value="5">
-                            <div class="value-display" id="zoomValue">5.0</div>
+                            <input type="range" id="zoom" min="2" max="10" step="0.1" value="4">
+                            <div class="value-display" id="zoomValue">4.0</div>
                         </div>
                     </div>
                     
@@ -278,10 +359,10 @@ class ProductBoxCreator extends HTMLElement {
                         <div class="control-group">
                             <label>Resolution</label>
                             <select id="exportResolution">
-                                <option value="1024">1K (1024x1024)</option>
-                                <option value="2048" selected>2K (2048x2048)</option>
-                                <option value="4096">4K (4096x4096)</option>
-                                <option value="8192">8K (8192x8192)</option>
+                                <option value="1024">1K (1024×1024)</option>
+                                <option value="2048" selected>2K (2048×2048)</option>
+                                <option value="4096">4K (4096×4096)</option>
+                                <option value="8192">8K (8192×8192)</option>
                             </select>
                         </div>
                         <button class="export-button" id="exportPNG">📸 Export PNG</button>
@@ -290,7 +371,7 @@ class ProductBoxCreator extends HTMLElement {
                     </div>
                 </div>
                 
-                <div class="canvas-container">
+                <div class="canvas-container" id="canvasContainer">
                     <canvas id="canvas"></canvas>
                 </div>
             </div>
@@ -309,16 +390,23 @@ class ProductBoxCreator extends HTMLElement {
         // Scene
         this.scene = new THREE.Scene();
 
-        // Camera
+        // Camera - positioned to show software package properly
         this.camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
-        this.camera.position.set(5, 3, 5);
+        this.camera.position.set(4, 2, 4);
 
-        // Renderer
-        this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+        // Renderer with alpha for transparency
+        this.renderer = new THREE.WebGLRenderer({ 
+            canvas, 
+            antialias: true, 
+            preserveDrawingBuffer: true, 
+            alpha: true 
+        });
         this.renderer.setSize(container.clientWidth, container.clientHeight);
-        this.renderer.setClearColor(this.settings.backgroundColor);
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        
+        // Set initial background
+        this.updateBackground();
 
         // Lights
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
@@ -331,11 +419,8 @@ class ProductBoxCreator extends HTMLElement {
         directionalLight.shadow.mapSize.height = 2048;
         this.scene.add(directionalLight);
 
-        // Create box
-        this.createBox();
-
-        // Controls
-        this.setupOrbitControls();
+        // Create software package box
+        this.createSoftwareBox();
 
         // Start render loop
         this.animate();
@@ -353,16 +438,17 @@ class ProductBoxCreator extends HTMLElement {
         });
     }
 
-    createBox() {
+    createSoftwareBox() {
         // Remove existing box
         if (this.box) {
             this.scene.remove(this.box);
         }
 
+        // Create geometry with software package dimensions
         const geometry = new THREE.BoxGeometry(
-            this.settings.boxSize.width,
-            this.settings.boxSize.height,
-            this.settings.boxSize.depth
+            this.boxDimensions.width,
+            this.boxDimensions.height,
+            this.boxDimensions.depth
         );
 
         // Create materials for each face
@@ -390,9 +476,35 @@ class ProductBoxCreator extends HTMLElement {
         this.scene.add(this.box);
     }
 
-    setupOrbitControls() {
-        // Simple manual controls since OrbitControls might not be available
-        this.updateCameraPosition();
+    updateBackground() {
+        const container = this.shadowRoot.getElementById('canvasContainer');
+        
+        switch (this.settings.backgroundType) {
+            case 'transparent':
+                this.renderer.setClearColor(0x000000, 0);
+                container.style.background = 'url(\'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20"><rect width="10" height="10" fill="%23ffffff"/><rect x="10" y="10" width="10" height="10" fill="%23ffffff"/><rect x="10" y="0" width="10" height="10" fill="%23f0f0f0"/><rect x="0" y="10" width="10" height="10" fill="%23f0f0f0"/></svg>\') repeat';
+                break;
+                
+            case 'color':
+                this.renderer.setClearColor(this.settings.backgroundColor);
+                container.style.background = '';
+                break;
+                
+            case 'gradient':
+                this.renderer.setClearColor(0x000000, 0);
+                const direction = this.settings.gradientDirection === 'radial' 
+                    ? 'radial-gradient(circle, ' 
+                    : `linear-gradient(${this.settings.gradientDirection}, `;
+                container.style.background = `${direction}${this.settings.gradientStart}, ${this.settings.gradientEnd})`;
+                break;
+                
+            case 'image':
+                if (this.settings.backgroundImage) {
+                    this.renderer.setClearColor(0x000000, 0);
+                    container.style.background = `url(${this.settings.backgroundImage}) center/cover no-repeat`;
+                }
+                break;
+        }
     }
 
     updateCameraPosition() {
@@ -407,34 +519,101 @@ class ProductBoxCreator extends HTMLElement {
         this.camera.lookAt(0, 0, 0);
     }
 
+    updateBackgroundControls() {
+        const colorControls = this.shadowRoot.getElementById('colorControls');
+        const gradientControls = this.shadowRoot.getElementById('gradientControls');
+        const imageControls = this.shadowRoot.getElementById('imageControls');
+        const transparentControls = this.shadowRoot.getElementById('transparentControls');
+
+        // Hide all controls first
+        [colorControls, gradientControls, imageControls, transparentControls].forEach(control => {
+            control.style.display = 'none';
+        });
+
+        // Show relevant controls
+        switch (this.settings.backgroundType) {
+            case 'color':
+                colorControls.style.display = 'block';
+                break;
+            case 'gradient':
+                gradientControls.style.display = 'block';
+                break;
+            case 'image':
+                imageControls.style.display = 'block';
+                break;
+            case 'transparent':
+                transparentControls.style.display = 'block';
+                break;
+        }
+    }
+
     setupEventListeners() {
         // File upload handlers
         const fileInputs = this.shadowRoot.querySelectorAll('.file-input');
         fileInputs.forEach(input => {
             input.addEventListener('change', (e) => this.handleFileUpload(e));
             
-            const button = this.shadowRoot.querySelector(`[data-face="${input.id}"]`);
-            button.addEventListener('click', () => input.click());
+            if (input.id !== 'backgroundImage') {
+                const button = this.shadowRoot.querySelector(`[data-face="${input.id}"]`);
+                button.addEventListener('click', () => input.click());
+            }
         });
 
-        // Control handlers
+        // Background type handler
+        this.shadowRoot.getElementById('backgroundType').addEventListener('change', (e) => {
+            this.settings.backgroundType = e.target.value;
+            this.updateBackgroundControls();
+            this.updateBackground();
+        });
+
+        // Background color handlers
         this.shadowRoot.getElementById('backgroundColor').addEventListener('input', (e) => {
             this.settings.backgroundColor = e.target.value;
-            this.renderer.setClearColor(this.settings.backgroundColor);
+            if (this.settings.backgroundType === 'color') {
+                this.updateBackground();
+            }
         });
 
-        // Box dimension handlers
-        ['boxWidth', 'boxHeight', 'boxDepth'].forEach(id => {
-            const input = this.shadowRoot.getElementById(id);
-            const valueDisplay = this.shadowRoot.getElementById(id.replace('box', '').toLowerCase() + 'Value');
-            
-            input.addEventListener('input', (e) => {
-                const value = parseFloat(e.target.value);
-                const dimension = id.replace('box', '').toLowerCase();
-                this.settings.boxSize[dimension === 'width' ? 'width' : dimension === 'height' ? 'height' : 'depth'] = value;
-                valueDisplay.textContent = value.toFixed(1);
-                this.createBox();
-            });
+        this.shadowRoot.getElementById('gradientStart').addEventListener('input', (e) => {
+            this.settings.gradientStart = e.target.value;
+            if (this.settings.backgroundType === 'gradient') {
+                this.updateBackground();
+            }
+        });
+
+        this.shadowRoot.getElementById('gradientEnd').addEventListener('input', (e) => {
+            this.settings.gradientEnd = e.target.value;
+            if (this.settings.backgroundType === 'gradient') {
+                this.updateBackground();
+            }
+        });
+
+        this.shadowRoot.getElementById('gradientDirection').addEventListener('change', (e) => {
+            this.settings.gradientDirection = e.target.value;
+            if (this.settings.backgroundType === 'gradient') {
+                this.updateBackground();
+            }
+        });
+
+        // Background image upload
+        this.shadowRoot.getElementById('backgroundImage').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    this.settings.backgroundImage = event.target.result;
+                    if (this.settings.backgroundType === 'image') {
+                        this.updateBackground();
+                    }
+                    this.shadowRoot.getElementById('backgroundImageButton').textContent = '✅ Background Image Loaded';
+                    this.shadowRoot.getElementById('backgroundImageButton').classList.add('has-image');
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        this.shadowRoot.getElementById('backgroundImageButton').addEventListener('click', () => {
+            this.shadowRoot.getElementById('backgroundImage').click();
         });
 
         // Camera control handlers
@@ -475,7 +654,7 @@ class ProductBoxCreator extends HTMLElement {
                 texture.wrapT = THREE.ClampToEdgeWrapping;
                 
                 this.textures[face] = texture;
-                this.createBox();
+                this.createSoftwareBox();
                 
                 // Update button appearance
                 const button = this.shadowRoot.querySelector(`[data-face="${face}"]`);
@@ -491,33 +670,54 @@ class ProductBoxCreator extends HTMLElement {
     exportImage(format) {
         const resolution = parseInt(this.shadowRoot.getElementById('exportResolution').value);
         
-        // Create temporary high-resolution renderer
+        // Create temporary high-resolution canvas
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = resolution;
         tempCanvas.height = resolution;
         
+        // Handle background rendering first for non-transparent backgrounds
+        if (this.settings.backgroundType !== 'transparent' && this.settings.backgroundType !== 'color') {
+            const ctx = tempCanvas.getContext('2d');
+            
+            if (this.settings.backgroundType === 'gradient') {
+                this.addGradientBackground(ctx, resolution);
+            } else if (this.settings.backgroundType === 'image' && this.settings.backgroundImage) {
+                this.addImageBackground(ctx, resolution);
+            }
+        }
+        
+        // Create temporary renderer
         const tempRenderer = new THREE.WebGLRenderer({ 
             canvas: tempCanvas, 
             antialias: true, 
-            preserveDrawingBuffer: true 
+            preserveDrawingBuffer: true,
+            alpha: this.settings.backgroundType === 'transparent'
         });
         
         tempRenderer.setSize(resolution, resolution);
-        tempRenderer.setClearColor(this.settings.backgroundColor);
         tempRenderer.shadowMap.enabled = true;
         tempRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-        // Update camera aspect ratio for square output
+        // Set background based on type
+        if (this.settings.backgroundType === 'transparent') {
+            tempRenderer.setClearColor(0x000000, 0);
+        } else if (this.settings.backgroundType === 'color') {
+            tempRenderer.setClearColor(this.settings.backgroundColor);
+        } else {
+            tempRenderer.setClearColor(0x000000, 0);
+        }
+
+        // Update camera for square output
         const tempCamera = this.camera.clone();
         tempCamera.aspect = 1;
         tempCamera.updateProjectionMatrix();
 
-        // Render at high resolution
+        // Render 3D scene
         tempRenderer.render(this.scene, tempCamera);
 
         // Export
         const link = document.createElement('a');
-        link.download = `product-box-${Date.now()}.${format}`;
+        link.download = `software-package-${Date.now()}.${format}`;
         
         if (format === 'png') {
             link.href = tempCanvas.toDataURL('image/png');
@@ -531,6 +731,41 @@ class ProductBoxCreator extends HTMLElement {
         tempRenderer.dispose();
     }
 
+    addGradientBackground(ctx, resolution) {
+        let gradient;
+        
+        if (this.settings.gradientDirection === 'radial') {
+            gradient = ctx.createRadialGradient(resolution/2, resolution/2, 0, resolution/2, resolution/2, resolution/2);
+        } else {
+            const directions = {
+                'to bottom': [0, 0, 0, resolution],
+                'to top': [0, resolution, 0, 0],
+                'to right': [0, 0, resolution, 0],
+                'to left': [resolution, 0, 0, 0],
+                'to bottom right': [0, 0, resolution, resolution],
+                'to bottom left': [resolution, 0, 0, resolution],
+                'to top right': [0, resolution, resolution, 0],
+                'to top left': [resolution, resolution, 0, 0]
+            };
+            const coords = directions[this.settings.gradientDirection] || [0, 0, 0, resolution];
+            gradient = ctx.createLinearGradient(...coords);
+        }
+        
+        gradient.addColorStop(0, this.settings.gradientStart);
+        gradient.addColorStop(1, this.settings.gradientEnd);
+        
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, resolution, resolution);
+    }
+
+    addImageBackground(ctx, resolution) {
+        const img = new Image();
+        img.onload = () => {
+            ctx.drawImage(img, 0, 0, resolution, resolution);
+        };
+        img.src = this.settings.backgroundImage;
+    }
+
     resetAll() {
         // Reset textures
         Object.keys(this.textures).forEach(key => {
@@ -541,39 +776,47 @@ class ProductBoxCreator extends HTMLElement {
         const fileInputs = this.shadowRoot.querySelectorAll('.file-input');
         fileInputs.forEach(input => {
             input.value = '';
-            const button = this.shadowRoot.querySelector(`[data-face="${input.id}"]`);
-            button.classList.remove('has-image');
-            button.textContent = `📄 ${input.id.charAt(0).toUpperCase() + input.id.slice(1)} Face`;
+            if (input.id === 'backgroundImage') {
+                const button = this.shadowRoot.getElementById('backgroundImageButton');
+                button.classList.remove('has-image');
+                button.textContent = '🖼️ Upload Background Image';
+            } else {
+                const button = this.shadowRoot.querySelector(`[data-face="${input.id}"]`);
+                button.classList.remove('has-image');
+                button.textContent = `📄 ${input.id.charAt(0).toUpperCase() + input.id.slice(1)} Face`;
+            }
         });
 
         // Reset controls
+        this.shadowRoot.getElementById('backgroundType').value = 'color';
         this.shadowRoot.getElementById('backgroundColor').value = '#f0f0f0';
-        this.shadowRoot.getElementById('boxWidth').value = '2';
-        this.shadowRoot.getElementById('boxHeight').value = '2';
-        this.shadowRoot.getElementById('boxDepth').value = '2';
+        this.shadowRoot.getElementById('gradientStart').value = '#f0f0f0';
+        this.shadowRoot.getElementById('gradientEnd').value = '#e0e0e0';
+        this.shadowRoot.getElementById('gradientDirection').value = 'to bottom';
         this.shadowRoot.getElementById('rotationX').value = '15';
         this.shadowRoot.getElementById('rotationY').value = '45';
-        this.shadowRoot.getElementById('zoom').value = '5';
+        this.shadowRoot.getElementById('zoom').value = '4';
 
         // Reset settings
         this.settings = {
             backgroundColor: '#f0f0f0',
-            boxSize: { width: 2, height: 2, depth: 2 },
-            perspective: { x: 0, y: 0, z: 5 },
+            backgroundType: 'color',
+            backgroundImage: null,
+            gradientStart: '#f0f0f0',
+            gradientEnd: '#e0e0e0',
+            gradientDirection: 'to bottom',
             exportResolution: 2048
         };
 
         // Update displays
-        this.shadowRoot.getElementById('widthValue').textContent = '2.0';
-        this.shadowRoot.getElementById('heightValue').textContent = '2.0';
-        this.shadowRoot.getElementById('depthValue').textContent = '2.0';
         this.shadowRoot.getElementById('rotationXValue').textContent = '15°';
         this.shadowRoot.getElementById('rotationYValue').textContent = '45°';
-        this.shadowRoot.getElementById('zoomValue').textContent = '5.0';
+        this.shadowRoot.getElementById('zoomValue').textContent = '4.0';
 
-        // Recreate box and update scene
-        this.renderer.setClearColor(this.settings.backgroundColor);
-        this.createBox();
+        // Update background controls and recreate box
+        this.updateBackgroundControls();
+        this.updateBackground();
+        this.createSoftwareBox();
         this.updateCameraPosition();
     }
 
